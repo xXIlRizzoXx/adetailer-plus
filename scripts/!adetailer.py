@@ -49,6 +49,7 @@ from adetailer.args import (
     InpaintBBoxMatchMode,
     SkipImg2ImgOrig,
 )
+from adetailer.classes import parse_csv
 from adetailer.common import PredictOutput, ensure_pil_image, safe_mkdir
 from adetailer.mask import (
     filter_by_ratio,
@@ -814,6 +815,32 @@ class AfterDetailerScript(scripts.Script):
         """
         if state.interrupted or state.skipped:
             return False
+
+        # Sequential class detection: split a multi-class include filter into
+        # one detect+inpaint pass per class, in the order the user selected
+        # them. Each pass operates on the output of the previous (pp.image is
+        # mutated in place by the inner inpaint).
+        if (
+            args.ad_classes_sequential
+            and not args.is_mediapipe()
+            and not args.ad_model_classes_exclude
+        ):
+            classes = parse_csv(args.ad_model_classes)
+            if len(classes) > 1:
+                is_processed = False
+                for cls in classes:
+                    if state.interrupted or state.skipped:
+                        break
+                    sub_args = args.copy(
+                        update={
+                            "ad_model_classes": cls,
+                            "ad_classes_sequential": False,
+                        }
+                    )
+                    is_processed |= self._postprocess_image_inner(
+                        p, pp, sub_args, n=n
+                    )
+                return is_processed
 
         i = get_i(p)
 

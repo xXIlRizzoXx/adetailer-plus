@@ -58,6 +58,7 @@ class ADetailerArgs(BaseModel, extra=Extra.forbid):
     ad_model_classes: str = ""
     ad_model_classes_exclude: bool = False
     ad_model_classes_excluded: str = ""
+    ad_classes_sequential: bool = False
     ad_tab_enable: bool = True
     ad_prompt: str = ""
     ad_negative_prompt: str = ""
@@ -133,6 +134,7 @@ class ADetailerArgs(BaseModel, extra=Extra.forbid):
         ppop("ADetailer model classes")
         ppop("ADetailer classes exclude")
         ppop("ADetailer model classes excluded")
+        ppop("ADetailer classes sequential")
         ppop("ADetailer prompt")
         ppop("ADetailer negative prompt")
         p.pop("ADetailer tab enable", None)  # always pop
@@ -224,6 +226,7 @@ _all_args = [
     ("ad_model_classes", "ADetailer model classes"),
     ("ad_model_classes_exclude", "ADetailer classes exclude"),
     ("ad_model_classes_excluded", "ADetailer model classes excluded"),
+    ("ad_classes_sequential", "ADetailer classes sequential"),
     ("ad_tab_enable", "ADetailer tab enable"),
     ("ad_prompt", "ADetailer prompt"),
     ("ad_negative_prompt", "ADetailer negative prompt"),
