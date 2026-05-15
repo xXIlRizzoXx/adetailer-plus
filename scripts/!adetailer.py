@@ -1001,7 +1001,18 @@ class AfterDetailerScript(scripts.Script):
             for n, args in enumerate(arg_list):
                 if args.need_skip():
                     continue
-                is_processed |= self._postprocess_image_inner(p, pp, args, n=n)
+                tab_processed = self._postprocess_image_inner(p, pp, args, n=n)
+                is_processed |= tab_processed
+                # Save the image right after THIS tab finished its inpaint
+                # pass(es), so the user gets one file per ADetailer stage and
+                # can roll back to a previous one if the next pass spoils it.
+                if tab_processed and not is_skip_img2img(p):
+                    self.save_image(
+                        p,
+                        pp.image,
+                        condition="ad_save_intermediate_steps",
+                        suffix=f"-ad-step-{n + 1}",
+                    )
 
         if is_processed and not is_skip_img2img(p):
             self.save_image(
@@ -1071,6 +1082,17 @@ def on_ui_settings():
         "ad_save_images_before",
         shared.OptionInfo(
             default=False, label="Save images before ADetailer", section=section
+        ),
+    )
+
+    shared.opts.add_option(
+        "ad_save_intermediate_steps",
+        shared.OptionInfo(
+            default=False,
+            label="Save intermediate step images (one per tab pass)",
+            section=section,
+        ).info(
+            "When enabled, save the image after each ADetailer tab completes — so you keep a copy after the 1st pass (e.g. face), another after the 2nd (e.g. hands), and so on. Useful for rolling back when the last pass spoils something. Files use suffix '-ad-step-N'."
         ),
     )
 

@@ -57,6 +57,22 @@ button[id*="adetailer_ad_preset_reset"] {
     margin-top: 6px !important;
 }
 
+/* ---------- Draggable class tokens (Sequential reorder) ---------- */
+/* JS in javascript/class-reorder.js makes the selected-class tokens in
+ * the multi-select dropdown draggable so the user can reorder them.
+ * These rules only style the drag affordance — the JS does the work. */
+[id*="ad_model_classes_dropdown"] .wrap-inner > *:not(.secondary-wrap) {
+    cursor: grab;
+}
+
+[id*="ad_model_classes_dropdown"] .wrap-inner > *:not(.secondary-wrap):active {
+    cursor: grabbing;
+}
+
+.ad-token-dragging {
+    opacity: 0.55 !important;
+}
+
 /* ---------- Version "about" overlay on the accordion header ----------
  * The version markdown lives inside the accordion's content area (so
  * it auto-hides when the accordion is collapsed), but we pull it out
