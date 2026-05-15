@@ -1,1 +1,1 @@
-__version__ = "26.2.0+classfilter.1"
+__version__ = "26.2.0+plus.2"

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-05-15 (plus: workflow ergonomics)
+
+- v26.2.0+plus.2
+- Project renamed `adetailer-classfilter` → `adetailer-plus` to reflect broader scope.
+- **Sequential class detection** — new "Process classes sequentially" checkbox. When multiple classes are selected in the dropdown, runs one detect+inpaint pass per class in dropdown order, each operating on the output of the previous. Better separation of regions and cleaner per-class inpainting at the cost of longer runtime. Ignored for MediaPipe, NOT mode, and single-class selections.
+- **Copy settings between tabs** — new "Copy settings from 1st tab to Nth" button in tabs 2-4. One click replicates the processing settings from the 1st tab (prompt, denoise, sampler, padding, ControlNet, etc.) into the current tab. Detector, class filter and per-tab enable are intentionally left alone so each tab can target a different region with the same downstream settings.
+
 ## 2026-05-15 (fork: class-filtering)
 
 - v26.2.0+classfilter.1

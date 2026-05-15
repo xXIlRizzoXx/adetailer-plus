@@ -1,10 +1,15 @@
-# ADetailer (class-filtering fork)
+# ADetailer Plus
 
-> **About this fork** — This is a soft-fork of [Bing-su/adetailer](https://github.com/Bing-su/adetailer) that adds **per-class filtering** for multiclass YOLO detection models (e.g. detectors that produce more than one class of object, like `0:face, 1:hand, 2:eye, …`). The upstream extension inpaints every detected class indiscriminately; this fork lets you pick which class(es) to inpaint and optionally invert the selection (NOT mode).
+> **About this fork** — `adetailer-plus` is a soft-fork of [Bing-su/adetailer](https://github.com/Bing-su/adetailer) that adds workflow features on top of upstream ADetailer. The features so far:
 >
-> The implementation was authored by **Claude** (Anthropic's coding assistant) at the request of the repository owner, who is not a Python developer. The technical approach is closely modelled on the class-filtering code in [wkpark/uddetailer](https://github.com/wkpark/uddetailer) (specifically `scripts/detectors/ultralytics.py`), which itself is a fork of DDetailer. All credit for the original ADetailer goes to **Bing-su**; all credit for the class-filtering design pattern goes to **wkpark**. This fork merely ports the pattern into ADetailer's UI and detection pipeline.
+> - **Per-class filtering** for multiclass YOLO detection models — auto-populated dropdown + "Exclude selected (NOT)" mode (see [Class Filtering](#class-filtering)).
+> - **Sequential class detection** — process selected classes one at a time, each pass refining the previous (see [Sequential Mode](#sequential-class-detection)).
+> - **Copy settings from 1st** — replicate the 1st tab's processing settings to the 2nd/3rd/4th tabs with one click (see [Copy Between Tabs](#copy-settings-between-tabs)).
+> - **Forge Neo compatibility fixes** — `disable_safe_unpickle` patch, JSON sidecar tolerance for civitai_helper-generated metadata.
 >
-> If you do not need class filtering, use upstream ADetailer instead — there is no functional benefit to running this fork for the common single-class case (faces, hands, persons).
+> The implementation was authored by **Claude** (Anthropic's coding assistant) at the request of the repository owner, who is not a Python developer. The class-filtering pattern is borrowed from [wkpark/uddetailer](https://github.com/wkpark/uddetailer). All credit for the original ADetailer goes to **Bing-su**; this fork extends that work — it does not replace it.
+>
+> If you only need single-class face/hand detection, use upstream ADetailer instead — the additional widgets in this fork are harmless but unnecessary for that case.
 
 ---
 
@@ -79,9 +84,31 @@ Class names are cached per-session, so changing this file requires a webui resta
 
 #### Backwards compatibility
 
-- The Pydantic schema gains two optional fields (`ad_model_classes_exclude: bool`, `ad_model_classes_excluded: str`) with safe defaults. Existing API clients and PNG infotext from earlier ADetailer runs continue to work.
+- The Pydantic schema gains optional fields (`ad_model_classes_exclude`, `ad_model_classes_excluded`, `ad_classes_sequential`) with safe defaults. Existing API clients and PNG infotext from earlier ADetailer runs continue to work.
 - When the new fields are at their defaults, they are stripped from infotext output — workflows that don't use the feature produce byte-identical infotext to upstream.
 - The existing `ad_model_classes` CSV semantic is preserved for YOLO-World models (`model.set_classes`); for multiclass YOLO it now drives the include filter via Ultralytics' native `model(classes=[ids])` argument.
+
+## Sequential Class Detection
+
+Tick **"Process classes sequentially"** (under the class dropdown) to make ADetailer run **one detection + inpaint pass per selected class**, in the order they appear in the dropdown.
+
+Without this flag, picking `face, hand, eye` means ADetailer runs a single inference with `classes=[face, hand, eye]`, gets all detections in one batch, then inpaints them all using the same prompt and settings.
+
+With sequential mode on, it instead runs three full passes:
+
+1. **Pass 1**: detect only `face` → inpaint matched regions → updated image.
+2. **Pass 2**: detect only `hand` on the result of pass 1 → inpaint → updated image.
+3. **Pass 3**: detect only `eye` on the result of pass 2 → inpaint → final image.
+
+The benefit: each pass operates on a cleaner input. The `hand` detector is not confused by half-inpainted face pixels; per-region padding is applied independently; large masks of one class don't shadow detections of another. Cost: longer total runtime (N passes instead of one).
+
+Sequential mode is **ignored** for MediaPipe models, in NOT/exclude mode, and when fewer than 2 classes are selected — in those cases it has no effect and the regular single-pass flow runs.
+
+## Copy Settings Between Tabs
+
+Tabs 2 through 4 each show a **"Copy settings from 1st tab to Nth"** button at the bottom. One click pastes all the 1st tab's processing settings — prompt, negative prompt, confidence, denoise, padding, sampler/checkpoint overrides, ControlNet, restore-faces, all the masking and inpainting knobs — into the current tab.
+
+The detector model and the class filter selection are **deliberately left untouched** so you can replicate the workflow of the 1st tab while pointing each tab at a different detector (e.g. tab 1 = `face_yolov8n.pt`, tab 2 = `hand_yolov8n.pt`, both with identical denoise/prompt). The "Enable this tab" checkbox of the target tab is also left alone.
 
 ## ControlNet Inpainting
 
