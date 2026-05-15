@@ -25,6 +25,19 @@ _EXT_ROOT = Path(__file__).resolve().parent.parent
 _STATE_FILE = _EXT_ROOT / "user_state.json"
 
 
+def _enabled() -> bool:
+    """User-facing toggle exposed in Settings > ADetailer.
+
+    Default = True so the feature is opt-OUT, not opt-in. Falls back to
+    True when modules.shared isn't importable (standalone preview / test).
+    """
+    try:
+        from modules.shared import opts
+    except ImportError:
+        return True
+    return bool(opts.data.get("ad_remember_last_settings", True))
+
+
 def _load_raw() -> dict[str, Any]:
     if not _STATE_FILE.is_file():
         return {}
@@ -38,7 +51,13 @@ def _load_raw() -> dict[str, Any]:
 
 
 def load_state() -> dict[str, dict[str, Any]]:
-    """Return per-tab saved state. Outer key = str(tab_index)."""
+    """Return per-tab saved state. Outer key = str(tab_index).
+
+    Returns an empty dict (no restore) if the user disabled the feature
+    in Settings > ADetailer > Remember last-used settings.
+    """
+    if not _enabled():
+        return {}
     raw = _load_raw()
     out: dict[str, dict[str, Any]] = {}
     for k, v in raw.items():
@@ -50,10 +69,13 @@ def load_state() -> dict[str, dict[str, Any]]:
 def save_tab_state(tab_index: int, state: dict[str, Any]) -> None:
     """Persist a single tab's state to disk.
 
+    No-op if the user disabled the feature in Settings > ADetailer.
     Writes the full file atomically: read existing -> mutate -> tmp file ->
     rename. Drops `is_api` (it's transient, tuple-vs-bool serialization
     causes infotext quirks).
     """
+    if not _enabled():
+        return
     try:
         current = _load_raw()
         cleaned = {k: v for k, v in state.items() if k != "is_api"}
