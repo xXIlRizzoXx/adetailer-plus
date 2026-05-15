@@ -4,7 +4,7 @@ import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
 
-from adetailer.classes import parse_csv, resolve_class_ids
+from adetailer.classes import _names_from_json, parse_csv, resolve_class_ids
 from adetailer.ultralytics import mask_to_pil, ultralytics_predict
 
 
@@ -96,6 +96,49 @@ def test_parse_csv():
     assert parse_csv("face") == ["face"]
     assert parse_csv("face, penis ,pussy") == ["face", "penis", "pussy"]
     assert parse_csv(",,,") == []
+
+
+class TestNamesFromJson:
+    def test_list(self):
+        assert _names_from_json(["face", "hand"]) == ["face", "hand"]
+
+    def test_names_list(self):
+        assert _names_from_json({"names": ["face", "hand"]}) == ["face", "hand"]
+
+    def test_names_dict(self):
+        assert _names_from_json({"names": {"0": "face", "1": "hand"}}) == ["face", "hand"]
+
+    def test_bare_int_keys(self):
+        assert _names_from_json({"0": "face", "1": "hand", "2": "eye"}) == [
+            "face",
+            "hand",
+            "eye",
+        ]
+
+    def test_civitai_helper_sidecar_ignored(self):
+        """Regression: civitai_helper-style metadata JSON must not be mistaken
+        for a class-names file. It has string keys and nested dicts; we should
+        return [] so the caller falls through to model.names."""
+        civitai_blob = {
+            "description": "<h2>...</h2>",
+            "sd version": "Unknown",
+            "extensions": {"sd_civitai_helper": {"version": "1.8.13"}},
+        }
+        assert _names_from_json(civitai_blob) == []
+
+    def test_partial_int_keys_rejected(self):
+        """A dict with some int keys and some non-int keys is NOT a class map."""
+        assert _names_from_json({"0": "face", "description": "x"}) == []
+
+    def test_nested_values_rejected(self):
+        """A dict with int keys whose values are dicts is NOT a class map."""
+        assert _names_from_json({"0": {"name": "face"}, "1": {"name": "hand"}}) == []
+
+    def test_empty_returns_empty(self):
+        assert _names_from_json({}) == []
+        assert _names_from_json([]) == []
+        assert _names_from_json(None) == []
+        assert _names_from_json("face") == []
 
 
 def test_resolve_class_ids_with_known_model():

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 
 def is_world_model(model_path: str | Path) -> bool:
@@ -13,12 +14,65 @@ def parse_csv(csv: str) -> list[str]:
     return [c.strip() for c in (csv or "").split(",") if c.strip()]
 
 
+def _names_from_json(data: Any) -> list[str]:
+    """Try to extract a class-names list from a parsed JSON blob.
+
+    Returns [] when the blob is *not* a recognized class-names format.
+    The caller is expected to fall through to another resolution path on [].
+    Recognized formats:
+      - ["face", "hand", ...]                          (list of names)
+      - {"names": ["face", "hand", ...]}               (Ultralytics-export-style)
+      - {"names": {"0": "face", "1": "hand", ...}}     (Ultralytics-dict-style)
+      - {"0": "face", "1": "hand", ...}                (bare integer-keyed map)
+    Anything else (e.g. civitai_helper sidecar JSONs) returns [].
+    """
+    if isinstance(data, list):
+        return [str(x) for x in data if isinstance(x, (str, int, float))]
+
+    if not isinstance(data, dict):
+        return []
+
+    if "names" in data:
+        inner = data["names"]
+        if isinstance(inner, list):
+            return [str(x) for x in inner if isinstance(x, (str, int, float))]
+        if isinstance(inner, dict):
+            try:
+                keys = sorted(int(k) for k in inner)
+            except (TypeError, ValueError):
+                return []
+            return [
+                str(inner[str(i)])
+                for i in keys
+                if str(i) in inner and isinstance(inner[str(i)], (str, int, float))
+            ]
+
+    # Bare {"0": "face", "1": "hand"}. Require ALL top-level keys to be ints
+    # AND all values to be scalars — otherwise treat as unrelated metadata.
+    try:
+        int_keys = [int(k) for k in data]
+    except (TypeError, ValueError):
+        return []
+    if not int_keys or len(int_keys) != len(data):
+        return []
+    keys = sorted(int_keys)
+    result: list[str] = []
+    for i in keys:
+        v = data.get(str(i))
+        if not isinstance(v, (str, int, float)):
+            return []
+        result.append(str(v))
+    return result
+
+
 @lru_cache(maxsize=32)
 def get_model_class_names(model_path: str) -> list[str]:
     """Resolve class names for a YOLO model.
 
     Resolution order:
-      1. Sidecar JSON file next to the .pt (list, {"names": [...]}, or {"0": "...", ...}).
+      1. Sidecar JSON file next to the .pt — only used if it parses into a
+         recognized class-names format. Unrelated JSONs (e.g. civitai_helper
+         metadata) are silently ignored.
       2. model.names from a transient YOLO() load.
       3. [] if unknown (YOLO-World, MediaPipe, missing file, or load failure).
     """
@@ -30,15 +84,12 @@ def get_model_class_names(model_path: str) -> list[str]:
     if sidecar.is_file():
         try:
             data = json.loads(sidecar.read_text(encoding="utf-8"))
-            if isinstance(data, list):
-                return [str(x) for x in data]
-            if isinstance(data, dict):
-                if "names" in data and isinstance(data["names"], list):
-                    return [str(x) for x in data["names"]]
-                keys = sorted(int(k) for k in data if str(k).lstrip("-").isdigit())
-                return [str(data[str(i)]) for i in keys if str(i) in data]
-        except (json.JSONDecodeError, OSError, KeyError, ValueError):
-            pass
+        except (json.JSONDecodeError, OSError):
+            data = None
+        if data is not None:
+            names = _names_from_json(data)
+            if names:
+                return names
 
     try:
         from ultralytics import YOLO
