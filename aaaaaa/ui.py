@@ -253,7 +253,13 @@ def adui(
         _wire_copy_paste(
             all_widgets, all_copy_btns, all_paste_btns, clipboard_state, num_models
         )
-        _wire_presets(all_widgets, all_presets, num_models)
+        _wire_presets(
+            all_widgets,
+            all_presets,
+            all_paste_btns,
+            clipboard_state,
+            num_models,
+        )
 
     # components: [bool, bool, dict, dict, ...]
     components = [ad_enable, ad_skip_img2img, *states]
@@ -264,6 +270,11 @@ def adui(
 # requested this. Keeping the exclusion mechanism in place (empty for now)
 # so it's a one-line revert if we ever want to carve out exceptions.
 _COPY_EXCLUDE_ATTRS: frozenset[str] = frozenset()
+
+# Sentinel "no preset selected" entry. Lives as the first choice in every
+# preset dropdown so the user can switch back to a clean state without
+# losing the saved presets.
+PRESET_NONE = "(none)"
 
 
 def _copyable_attrs() -> list[str]:
@@ -341,6 +352,8 @@ def _wire_copy_paste(
 def _wire_presets(
     all_widgets: list[Widgets],
     all_presets: list[tuple],
+    all_paste_btns: list[gr.Button],
+    clipboard_state: gr.State,
     num_models: int,
 ) -> None:
     """Wire each tab's preset Load/Save/Delete/Reset buttons.
@@ -349,31 +362,31 @@ def _wire_presets(
     from one_ui_group: (dropdown, load_btn, delete_btn, name_box,
     save_btn, reset_btn, status_md).
 
-    Saving or deleting from any tab must refresh ALL tabs' dropdown choices
-    so the user sees the new list without reloading the page. Reset is
-    per-tab — it applies pydantic defaults to the current tab's widgets
-    and clears the preset selection so the user is in a 'fresh' state.
+    Saving or deleting from any tab refreshes ALL tabs' dropdown choices.
+    Reset is per-tab and ONLY clears the preset library + tab clipboard
+    sections: dropdown back to (none), name textbox emptied, status
+    cleared, and the global clipboard state wiped (every paste button on
+    every tab returns to its disabled default). Reset does NOT touch the
+    actual detection / inpaint widgets — those are reachable via Load
+    of a saved preset or by changing values manually.
     """
-    from adetailer.args import ADetailerArgs
-
     attrs = list(ALL_ARGS.attrs)
     all_dropdowns = [p[0] for p in all_presets]
 
-    # Pydantic field defaults for every attr in ALL_ARGS — used by the
-    # Reset button to return the tab to a pristine state. Fields not on
-    # ADetailerArgs (shouldn't happen) fall back to None.
-    _defaults = {
-        a: ADetailerArgs.__fields__[a].default
-        for a in attrs
-        if a in ADetailerArgs.__fields__
-    }
-
     def _refresh_dropdowns_update(selected: str | None = None) -> list:
-        names = get_preset_names()
+        # PRESET_NONE is always the first entry so the user has a no-op
+        # option to switch the dropdown back to "nothing selected".
+        names = [PRESET_NONE] + get_preset_names()
         return [
-            gr.update(choices=names, value=(selected if selected in names else None))
+            gr.update(
+                choices=names,
+                value=(selected if selected in names else PRESET_NONE),
+            )
             for _ in range(num_models)
         ]
+
+    def _is_none(selected: str | None) -> bool:
+        return not selected or selected == PRESET_NONE
 
     for idx in range(num_models):
         (
@@ -388,10 +401,10 @@ def _wire_presets(
         widget_refs = [getattr(all_widgets[idx], a) for a in attrs]
 
         # LOAD: pull the selected preset from disk, apply its values to this
-        # tab's widgets. No-op if the preset name is missing or unknown.
+        # tab's widgets. No-op if (none) or the preset name is missing.
         def _make_load(idx: int, n_attrs: int):
             def _load(selected: str | None):
-                if not selected:
+                if _is_none(selected):
                     return ["", *(gr.update() for _ in range(n_attrs))]
                 preset = get_preset(selected)
                 if not preset:
@@ -445,9 +458,9 @@ def _wire_presets(
         # DELETE: remove the selected preset; refresh dropdowns.
         def _make_delete():
             def _delete(selected: str | None):
-                selected = (selected or "").strip()
-                if not selected:
+                if _is_none(selected):
                     return ["⚠️ Pick a preset first.", *_refresh_dropdowns_update()]
+                selected = selected.strip()
                 ok = delete_preset(selected)
                 if not ok:
                     return [
@@ -468,29 +481,39 @@ def _wire_presets(
             queue=False,
         )
 
-        # RESET: roll every widget in THIS tab back to its pydantic default
-        # value and clear the preset dropdown selection so the user is no
-        # longer 'on' a saved preset. Doesn't touch other tabs.
-        def _make_reset(idx: int):
+        # RESET: only clears the preset library + tab clipboard sections.
+        # - Preset dropdown of THIS tab back to (none)
+        # - Preset name textbox emptied
+        # - Status line cleared
+        # - Global clipboard wiped: state -> (-1, []), every paste button
+        #   on every tab returns to "📥 Paste settings" disabled.
+        # Does NOT touch the detection / inpaint widgets on any tab.
+        def _make_reset():
             def _reset():
-                widget_updates = [
-                    gr.update(value=_defaults.get(a))
-                    if a in _defaults
-                    else gr.update()
-                    for a in attrs
+                paste_updates = [
+                    gr.update(value="\U0001F4E5 Paste settings", interactive=False)
+                    for _ in range(num_models)
                 ]
                 return [
-                    "\U0001F195 Reset to defaults.",
-                    gr.update(value=None),  # clear this tab's preset dropdown
-                    *widget_updates,
+                    "",                          # status_md
+                    gr.update(value=PRESET_NONE),  # this tab's dropdown
+                    "",                          # name_box
+                    (-1, []),                    # clipboard_state (global)
+                    *paste_updates,              # every paste button (global)
                 ]
 
             return _reset
 
         reset_btn.click(
-            fn=_make_reset(idx),
+            fn=_make_reset(),
             inputs=None,
-            outputs=[status_md, dropdown, *widget_refs],
+            outputs=[
+                status_md,
+                dropdown,
+                name_box,
+                clipboard_state,
+                *all_paste_btns,
+            ],
             queue=False,
         )
 
@@ -517,12 +540,12 @@ def one_ui_group(
     # across tabs — saving from one tab makes the preset visible in all
     # tabs' dropdowns. The wiring (which needs refs to every tab's dropdown
     # for cross-tab refresh) is done in _wire_presets() called from adui().
-    initial_presets = get_preset_names()
+    initial_presets = [PRESET_NONE] + get_preset_names()
     gr.Markdown("Preset library", elem_classes=["ad-section-label"])
     with gr.Row(variant="compact"):
         preset_dropdown = gr.Dropdown(
             choices=initial_presets,
-            value=None,
+            value=PRESET_NONE,
             label="Saved presets" + suffix(n),
             show_label=False,
             interactive=True,

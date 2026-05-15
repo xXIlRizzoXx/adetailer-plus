@@ -10,7 +10,8 @@ button[id*="adetailer_ad_copy_settings"],
 button[id*="adetailer_ad_paste_settings"],
 button[id*="adetailer_ad_preset_load"],
 button[id*="adetailer_ad_preset_delete"],
-button[id*="adetailer_ad_preset_save"] {
+button[id*="adetailer_ad_preset_save"],
+button[id*="adetailer_ad_preset_reset"] {
     border-radius: 8px !important;
 }
 
