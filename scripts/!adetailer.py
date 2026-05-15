@@ -104,6 +104,31 @@ print(
 )
 
 
+# A1111/Forge LoRA + LyCORIS prompt syntax. Captures the full <lora:...> /
+# <lyco:...> tag including its weights so it can be re-appended verbatim.
+_LORA_TAG_RE = re.compile(r"<(?:lora|lyco):[^>]+>", re.IGNORECASE)
+
+
+def _extract_lora_tags(prompt: str) -> list[str]:
+    """Return the LoRA/LyCORIS tags present in `prompt`, in order, no dedup."""
+    if not prompt:
+        return []
+    return _LORA_TAG_RE.findall(prompt)
+
+
+def _merge_lora_tags(prompt: str, extras: list[str]) -> str:
+    """Append `extras` to `prompt`, skipping any tag already present."""
+    if not extras:
+        return prompt
+    existing = set(_LORA_TAG_RE.findall(prompt or ""))
+    to_add = [t for t in extras if t not in existing]
+    if not to_add:
+        return prompt
+    base = (prompt or "").rstrip().rstrip(",").rstrip()
+    tail = " ".join(to_add)
+    return f"{base} {tail}" if base else tail
+
+
 class AfterDetailerScript(scripts.Script):
     def __init__(self):
         super().__init__()
@@ -296,10 +321,12 @@ class AfterDetailerScript(scripts.Script):
         default: str,
         replacements: list[PromptSR],
         append: str = "",
+        include_loras_from: str = "",
     ) -> list[str]:
         prompts = re.split(r"\s*\[SEP\]\s*", ad_prompt)
         blank_replacement = self.prompt_blank_replacement(all_prompts, i, default)
         append_clean = append.strip().lstrip(",").strip()
+        extra_loras = _extract_lora_tags(include_loras_from)
         for n in range(len(prompts)):
             if not prompts[n]:
                 prompts[n] = blank_replacement
@@ -315,11 +342,27 @@ class AfterDetailerScript(scripts.Script):
             if append_clean:
                 base = prompts[n].rstrip().rstrip(",").rstrip()
                 prompts[n] = f"{base}, {append_clean}" if base else append_clean
+
+            # LoRA auto-inclusion: append LoRAs from the main prompt that
+            # aren't already present in this segment. The order is preserved
+            # and duplicates skipped.
+            if extra_loras:
+                prompts[n] = _merge_lora_tags(prompts[n], extra_loras)
         return prompts
 
     def get_prompt(self, p, args: ADetailerArgs) -> tuple[list[str], list[str]]:
         i = get_i(p)
         prompt_sr = p._ad_xyz_prompt_sr if hasattr(p, "_ad_xyz_prompt_sr") else []
+
+        # When ad_use_main_loras is on, the LoRAs in the main positive prompt
+        # are auto-included in every ADetailer inpaint pass so the user
+        # doesn't have to copy them by hand into ad_prompt.
+        loras_source = ""
+        if args.ad_use_main_loras:
+            main_idx = min(i, len(p.all_prompts) - 1) if p.all_prompts else 0
+            loras_source = (
+                p.all_prompts[main_idx] if p.all_prompts else (p.prompt or "")
+            )
 
         prompt = self._get_prompt(
             ad_prompt=args.ad_prompt,
@@ -328,6 +371,7 @@ class AfterDetailerScript(scripts.Script):
             default=p.prompt,
             replacements=prompt_sr,
             append=args.ad_prompt_append,
+            include_loras_from=loras_source,
         )
         negative_prompt = self._get_prompt(
             ad_prompt=args.ad_negative_prompt,

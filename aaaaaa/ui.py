@@ -668,6 +668,15 @@ def one_ui_group(
                 elem_id=eid("ad_negative_prompt_append"),
             )
 
+        with gr.Row():
+            w.ad_use_main_loras = gr.Checkbox(
+                label="Use LoRAs from main prompt" + suffix(n),
+                value=sv("ad_use_main_loras", False),
+                visible=True,
+                elem_id=eid("ad_use_main_loras"),
+                info="Auto-include the main prompt's <lora:...> / <lyco:...> tags in this tab's inpaint passes. Duplicates already in ad_prompt are skipped.",
+            )
+
     with gr.Group():
         with gr.Accordion(
             "Detection", open=False, elem_id=eid("ad_detection_accordion")
