@@ -1,0 +1,35 @@
+/* ADetailer fork (xXIlRizzoXx/adetailer) — UI polish.
+ *
+ * Loaded automatically by A1111/Forge/Forge Neo when present at the
+ * extension root. Scoped via elem_id substrings so we never touch
+ * non-ADetailer buttons / labels.
+ */
+
+/* ---------- Rounded corners on the fork's action buttons ---------- */
+button[id*="adetailer_ad_copy_settings"],
+button[id*="adetailer_ad_paste_settings"],
+button[id*="adetailer_ad_preset_load"],
+button[id*="adetailer_ad_preset_delete"],
+button[id*="adetailer_ad_preset_save"] {
+    border-radius: 8px !important;
+}
+
+/* ---------- Section labels — small, muted, no big vertical eaten ---------- */
+.ad-section-label,
+.ad-section-label p {
+    margin: 6px 0 2px 0 !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.65;
+}
+
+/* Preset status line: faded by default so it doesn't shout for attention. */
+.ad-preset-status,
+.ad-preset-status p {
+    margin: 2px 0 0 0 !important;
+    font-size: 11px !important;
+    opacity: 0.75;
+}

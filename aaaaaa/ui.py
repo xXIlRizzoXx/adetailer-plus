@@ -469,6 +469,7 @@ def one_ui_group(
     # tabs' dropdowns. The wiring (which needs refs to every tab's dropdown
     # for cross-tab refresh) is done in _wire_presets() called from adui().
     initial_presets = get_preset_names()
+    gr.Markdown("Preset library", elem_classes=["ad-section-label"])
     with gr.Row(variant="compact"):
         preset_dropdown = gr.Dropdown(
             choices=initial_presets,
@@ -505,11 +506,16 @@ def one_ui_group(
             size="sm",
             scale=2,
         )
-    preset_status = gr.Markdown(value="", elem_id=eid("ad_preset_status"))
+    preset_status = gr.Markdown(
+        value="",
+        elem_id=eid("ad_preset_status"),
+        elem_classes=["ad-preset-status"],
+    )
 
     # Copy/paste pair at the top of every tab. Initial state: paste disabled
     # (clipboard empty). After any tab's Copy is clicked, all other tabs'
     # Paste buttons enable with the source-tab label.
+    gr.Markdown("Tab clipboard", elem_classes=["ad-section-label"])
     with gr.Row(variant="compact"):
         copy_btn = gr.Button(
             value="\U0001F4CB Copy settings",
@@ -623,6 +629,7 @@ def one_ui_group(
     gr.HTML("<br>")
 
     with gr.Group():
+        gr.Markdown("Inpaint prompts", elem_classes=["ad-section-label"])
         with gr.Row(elem_id=eid("ad_toprow_prompt")):
             w.ad_prompt = gr.Textbox(
                 value=sv("ad_prompt", ""),
