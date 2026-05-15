@@ -34,6 +34,12 @@ button[id*="adetailer_ad_preset_save"] {
     opacity: 0.75;
 }
 
+/* Breathing room between the dropdown/Load/Delete row and the
+ * name+Save row inside the preset library block. */
+.ad-preset-save-row {
+    margin-top: 10px !important;
+}
+
 /* ---------- Version "about" overlay on the accordion header ----------
  * The version markdown lives inside the accordion's content area (so
  * it auto-hides when the accordion is collapsed), but we pull it out

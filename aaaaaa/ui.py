@@ -494,7 +494,7 @@ def one_ui_group(
             size="sm",
             scale=1,
         )
-    with gr.Row(variant="compact"):
+    with gr.Row(variant="compact", elem_classes=["ad-preset-save-row"]):
         preset_name_box = gr.Textbox(
             value="",
             placeholder="Preset name to save (letters, digits, basic punctuation)",
