@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-05-15 (fork: class-filtering)
+
+- v26.2.0+classfilter.1
+- **Fork only** — per-class filtering for multiclass YOLO detection models.
+  - New auto-populated multi-select dropdown `ADetailer detector classes` for non-YOLO-World models. Reads class names from `model.names` or a sidecar `<model>.json`.
+  - New `Exclude selected (NOT)` checkbox to invert the filter (inpaint everything except the selected classes).
+  - Include path uses Ultralytics' native `model(classes=[ids])` keyword — zero post-processing cost.
+  - Exclude path filters `pred[0].boxes.cls` after inference.
+  - New Pydantic fields `ad_model_classes_exclude: bool` and `ad_model_classes_excluded: str`; defaults preserve byte-identical infotext for workflows that don't use the feature.
+  - YOLO-World text-based class entry is preserved unchanged.
+  - MediaPipe models keep all class widgets hidden.
+- Design inspired by [wkpark/uddetailer](https://github.com/wkpark/uddetailer); implementation by Claude (Anthropic).
+
 ## 2026-02-05
 
 - v26.2.0

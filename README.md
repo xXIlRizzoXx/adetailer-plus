@@ -1,4 +1,12 @@
-# ADetailer
+# ADetailer (class-filtering fork)
+
+> **About this fork** — This is a soft-fork of [Bing-su/adetailer](https://github.com/Bing-su/adetailer) that adds **per-class filtering** for multiclass YOLO detection models (e.g. detectors that produce more than one class of object, like `0:face, 1:hand, 2:eye, …`). The upstream extension inpaints every detected class indiscriminately; this fork lets you pick which class(es) to inpaint and optionally invert the selection (NOT mode).
+>
+> The implementation was authored by **Claude** (Anthropic's coding assistant) at the request of the repository owner, who is not a Python developer. The technical approach is closely modelled on the class-filtering code in [wkpark/uddetailer](https://github.com/wkpark/uddetailer) (specifically `scripts/detectors/ultralytics.py`), which itself is a fork of DDetailer. All credit for the original ADetailer goes to **Bing-su**; all credit for the class-filtering design pattern goes to **wkpark**. This fork merely ports the pattern into ADetailer's UI and detection pipeline.
+>
+> If you do not need class filtering, use upstream ADetailer instead — there is no functional benefit to running this fork for the common single-class case (faces, hands, persons).
+
+---
 
 ADetailer is an extension for the stable diffusion webui that does automatic masking and inpainting. It is similar to the Detection Detailer.
 
@@ -25,7 +33,7 @@ Or
 | Model, Prompts                    |                                                                                    |                                                                                                                                                        |
 | --------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ADetailer model                   | Determine what to detect.                                                          | `None` = disable                                                                                                                                       |
-| ADetailer model classes           | Comma separated class names to detect. only available when using YOLO World models | If blank, use default values.<br/>default = [COCO 80 classes](https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/datasets/coco.yaml) |
+| ADetailer model classes           | **(Fork)** For YOLO-World models: comma separated class names to detect (open vocabulary). For other multiclass YOLO models: classes are auto-populated in a dropdown — see [Class Filtering](#class-filtering-fork-feature) below. | If blank, all classes the model produces are inpainted (upstream behavior). |
 | ADetailer prompt, negative prompt | Prompts and negative prompts to apply                                              | If left blank, it will use the same as the input.                                                                                                      |
 | Skip img2img                      | Skip img2img. In practice, this works by changing the step count of img2img to 1.  | img2img only                                                                                                                                           |
 
@@ -48,6 +56,32 @@ Applied in this order: x, y offset → erosion/dilation → merge/invert.
 #### Inpainting
 
 Each option corresponds to a corresponding option on the inpaint tab. Therefore, please refer to the inpaint tab for usage details on how to use each option.
+
+## Class Filtering (fork feature)
+
+When a multiclass YOLO detection model is selected (one that exposes more than one class, such as the [fdetailer](https://civitai.com/models/1228695) model with classes `face / penis / pussy / anus / sheath / pawpads`, or any custom YOLOv8 segmentation model), the UI auto-populates a multi-select dropdown labelled **ADetailer detector classes** with the class names the model was trained on.
+
+- **Include mode** (default): pick one or more classes. Only detections of those classes will be inpainted.
+- **Exclude / NOT mode**: tick the **Exclude selected (NOT)** checkbox. Detections of the selected classes will be skipped; everything else gets inpainted.
+- **Empty selection**: behaves exactly like upstream — every class is inpainted.
+
+For YOLO-World models the original text-based interface is preserved (open-vocabulary class names are not known up-front). For MediaPipe models the dropdown stays hidden (those models are not class-based).
+
+#### Custom class names via sidecar JSON
+
+If your `.pt` model does not embed class names in `model.names`, or you want to override them, drop a `.json` file with the same basename next to the `.pt` in `models/adetailer/`. The JSON may be a list, a `{"names": [...]}` object, or a `{"0": "face", "1": "hand", …}` map. Example:
+
+```json
+["face", "hand", "eye"]
+```
+
+Class names are cached per-session, so changing this file requires a webui restart to take effect.
+
+#### Backwards compatibility
+
+- The Pydantic schema gains two optional fields (`ad_model_classes_exclude: bool`, `ad_model_classes_excluded: str`) with safe defaults. Existing API clients and PNG infotext from earlier ADetailer runs continue to work.
+- When the new fields are at their defaults, they are stripped from infotext output — workflows that don't use the feature produce byte-identical infotext to upstream.
+- The existing `ad_model_classes` CSV semantic is preserved for YOLO-World models (`model.set_classes`); for multiclass YOLO it now drives the include filter via Ultralytics' native `model(classes=[ids])` argument.
 
 ## ControlNet Inpainting
 
@@ -110,6 +144,15 @@ ADetailer is developed and tested using the stable-diffusion 1.5 model, for the 
 ## License
 
 ADetailer is a derivative work that uses two AGPL-licensed works (stable-diffusion-webui, ultralytics) and is therefore distributed under the AGPL license.
+
+## Credits
+
+This fork stands on the shoulders of two prior projects:
+
+- **[Bing-su/adetailer](https://github.com/Bing-su/adetailer)** — the upstream extension. All of the original detection/inpainting pipeline, UI scaffolding, ControlNet integration, infotext handling, and the YOLO-World support are Bing-su's work. This fork is a thin addition on top of it.
+- **[wkpark/uddetailer](https://github.com/wkpark/uddetailer)** — a sibling extension whose `scripts/detectors/ultralytics.py` provided the reference implementation for class filtering: passing `classes=[ids]` directly to Ultralytics' inference call for include filtering, and post-filtering predictions by class name for exclude. The dropdown-based UI is also conceptually borrowed from uddetailer's interface.
+
+The class-filtering code in this fork was implemented by **[Claude](https://www.anthropic.com/claude)** (Anthropic's coding assistant) on behalf of the repository owner, who directed the project but does not write Python. The work is licensed under the same AGPL terms as upstream ADetailer.
 
 ## See Also
 
