@@ -40,6 +40,14 @@ button[id*="adetailer_ad_preset_save"] {
     margin-top: 10px !important;
 }
 
+/* Small vertical gap between consecutive prompt textboxes
+ * (ad_prompt, ad_prompt_append, ad_negative_prompt,
+ * ad_negative_prompt_append). The first row is unaffected — only
+ * adjacent siblings of the same class get pushed down. */
+.ad-prompt-row + .ad-prompt-row {
+    margin-top: 6px !important;
+}
+
 /* ---------- Version "about" overlay on the accordion header ----------
  * The version markdown lives inside the accordion's content area (so
  * it auto-hides when the accordion is collapsed), but we pull it out

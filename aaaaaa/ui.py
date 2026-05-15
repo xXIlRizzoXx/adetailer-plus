@@ -632,7 +632,7 @@ def one_ui_group(
 
     with gr.Group():
         gr.Markdown("Inpaint prompts", elem_classes=["ad-section-label"])
-        with gr.Row(elem_id=eid("ad_toprow_prompt")):
+        with gr.Row(elem_id=eid("ad_toprow_prompt"), elem_classes=["ad-prompt-row"]):
             w.ad_prompt = gr.Textbox(
                 value=sv("ad_prompt", ""),
                 label="ad_prompt" + suffix(n),
@@ -644,7 +644,7 @@ def one_ui_group(
                 elem_id=eid("ad_prompt"),
             )
 
-        with gr.Row(elem_id=eid("ad_toprow_prompt_append")):
+        with gr.Row(elem_id=eid("ad_toprow_prompt_append"), elem_classes=["ad-prompt-row"]):
             w.ad_prompt_append = gr.Textbox(
                 value=sv("ad_prompt_append", ""),
                 label="ad_prompt_append" + suffix(n),
@@ -654,7 +654,7 @@ def one_ui_group(
                 elem_id=eid("ad_prompt_append"),
             )
 
-        with gr.Row(elem_id=eid("ad_toprow_negative_prompt")):
+        with gr.Row(elem_id=eid("ad_toprow_negative_prompt"), elem_classes=["ad-prompt-row"]):
             w.ad_negative_prompt = gr.Textbox(
                 value=sv("ad_negative_prompt", ""),
                 label="ad_negative_prompt" + suffix(n),
@@ -666,7 +666,7 @@ def one_ui_group(
                 elem_id=eid("ad_negative_prompt"),
             )
 
-        with gr.Row(elem_id=eid("ad_toprow_negative_prompt_append")):
+        with gr.Row(elem_id=eid("ad_toprow_negative_prompt_append"), elem_classes=["ad-prompt-row"]):
             w.ad_negative_prompt_append = gr.Textbox(
                 value=sv("ad_negative_prompt_append", ""),
                 label="ad_negative_prompt_append" + suffix(n),
