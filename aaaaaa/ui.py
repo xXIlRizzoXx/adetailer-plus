@@ -96,16 +96,21 @@ def on_generate_click(state: dict, *values: Any):
 def on_ad_model_update(model: str, model_mapping: dict[str, str] | None = None):
     """Return updates for (textbox, dropdown, exclude-checkbox, excluded-textbox).
 
-    - YOLO-World models: show the free-text textbox (open-vocabulary).
-    - Multiclass YOLO models: show the dropdown auto-populated from model.names,
-      plus the exclude/NOT checkbox.
-    - MediaPipe / None: hide everything.
+    The dropdown and exclude checkbox stay **always visible** so the UI layout
+    is predictable across model changes. They are populated with the model's
+    class names when applicable, and shown empty (effectively non-interactive)
+    for None / MediaPipe / YOLO-World, where class filtering is not the
+    relevant mechanism.
+
+    - YOLO-World models: ALSO show the free-text textbox (open-vocabulary).
+    - Multiclass YOLO models: dropdown is populated from model.names.
+    - MediaPipe / None: dropdown is shown but empty.
     """
     if not model or model == "None" or model.lower().startswith("mediapipe"):
         return (
             gr.update(visible=False, value=""),
-            gr.update(visible=False, choices=[], value=[]),
-            gr.update(visible=False, value=False),
+            gr.update(visible=True, choices=[], value=[]),
+            gr.update(visible=True, value=False),
             gr.update(value=""),
         )
 
@@ -116,8 +121,8 @@ def on_ad_model_update(model: str, model_mapping: dict[str, str] | None = None):
                 value="",
                 placeholder="Comma separated class names to detect, ex: 'person,cat'. default: COCO 80 classes",
             ),
-            gr.update(visible=False, choices=[], value=[]),
-            gr.update(visible=False, value=False),
+            gr.update(visible=True, choices=[], value=[]),
+            gr.update(visible=True, value=False),
             gr.update(value=""),
         )
 
@@ -126,8 +131,8 @@ def on_ad_model_update(model: str, model_mapping: dict[str, str] | None = None):
     names = get_model_class_names(path) if path else []
     return (
         gr.update(visible=False, value=""),
-        gr.update(visible=bool(names), choices=names, value=[]),
-        gr.update(visible=bool(names), value=False),
+        gr.update(visible=True, choices=names, value=[]),
+        gr.update(visible=True, value=False),
         gr.update(value=""),
     )
 
@@ -245,7 +250,7 @@ def one_ui_group(n: int, is_img2img: bool, webui_info: WebuiInfo):
                 choices=[],
                 value=[],
                 multiselect=True,
-                visible=False,
+                visible=True,
                 elem_id=eid("ad_model_classes_dropdown"),
             )
 
@@ -253,7 +258,7 @@ def one_ui_group(n: int, is_img2img: bool, webui_info: WebuiInfo):
             w.ad_model_classes_exclude = gr.Checkbox(
                 label="Exclude selected (NOT)" + suffix(n),
                 value=False,
-                visible=False,
+                visible=True,
                 elem_id=eid("ad_model_classes_exclude"),
             )
             # Mirror of the dropdown when exclude=True; hidden, used as the
