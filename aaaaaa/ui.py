@@ -343,17 +343,30 @@ def _wire_presets(
     all_presets: list[tuple],
     num_models: int,
 ) -> None:
-    """Wire each tab's preset Load/Save/Delete buttons.
+    """Wire each tab's preset Load/Save/Delete/Reset buttons.
 
-    Layout reminder — each entry of `all_presets` is the 6-tuple returned
+    Layout reminder — each entry of `all_presets` is the 7-tuple returned
     from one_ui_group: (dropdown, load_btn, delete_btn, name_box,
-    save_btn, status_md).
+    save_btn, reset_btn, status_md).
 
     Saving or deleting from any tab must refresh ALL tabs' dropdown choices
-    so the user sees the new list without reloading the page.
+    so the user sees the new list without reloading the page. Reset is
+    per-tab — it applies pydantic defaults to the current tab's widgets
+    and clears the preset selection so the user is in a 'fresh' state.
     """
+    from adetailer.args import ADetailerArgs
+
     attrs = list(ALL_ARGS.attrs)
     all_dropdowns = [p[0] for p in all_presets]
+
+    # Pydantic field defaults for every attr in ALL_ARGS — used by the
+    # Reset button to return the tab to a pristine state. Fields not on
+    # ADetailerArgs (shouldn't happen) fall back to None.
+    _defaults = {
+        a: ADetailerArgs.__fields__[a].default
+        for a in attrs
+        if a in ADetailerArgs.__fields__
+    }
 
     def _refresh_dropdowns_update(selected: str | None = None) -> list:
         names = get_preset_names()
@@ -363,7 +376,15 @@ def _wire_presets(
         ]
 
     for idx in range(num_models):
-        dropdown, load_btn, delete_btn, name_box, save_btn, status_md = all_presets[idx]
+        (
+            dropdown,
+            load_btn,
+            delete_btn,
+            name_box,
+            save_btn,
+            reset_btn,
+            status_md,
+        ) = all_presets[idx]
         widget_refs = [getattr(all_widgets[idx], a) for a in attrs]
 
         # LOAD: pull the selected preset from disk, apply its values to this
@@ -447,6 +468,32 @@ def _wire_presets(
             queue=False,
         )
 
+        # RESET: roll every widget in THIS tab back to its pydantic default
+        # value and clear the preset dropdown selection so the user is no
+        # longer 'on' a saved preset. Doesn't touch other tabs.
+        def _make_reset(idx: int):
+            def _reset():
+                widget_updates = [
+                    gr.update(value=_defaults.get(a))
+                    if a in _defaults
+                    else gr.update()
+                    for a in attrs
+                ]
+                return [
+                    "\U0001F195 Reset to defaults.",
+                    gr.update(value=None),  # clear this tab's preset dropdown
+                    *widget_updates,
+                ]
+
+            return _reset
+
+        reset_btn.click(
+            fn=_make_reset(idx),
+            inputs=None,
+            outputs=[status_md, dropdown, *widget_refs],
+            queue=False,
+        )
+
 
 def one_ui_group(
     n: int,
@@ -507,6 +554,12 @@ def one_ui_group(
             elem_id=eid("ad_preset_save"),
             size="sm",
             scale=2,
+        )
+        preset_reset_btn = gr.Button(
+            value="\U0001F195 Reset",
+            elem_id=eid("ad_preset_reset"),
+            size="sm",
+            scale=1,
         )
     preset_status = gr.Markdown(
         value="",
@@ -729,6 +782,7 @@ def one_ui_group(
         preset_delete_btn,
         preset_name_box,
         preset_save_btn,
+        preset_reset_btn,
         preset_status,
     )
     return w, copy_btn, paste_btn, preset_widgets, state, infotext_fields

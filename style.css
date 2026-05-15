@@ -14,7 +14,7 @@ button[id*="adetailer_ad_preset_save"] {
     border-radius: 8px !important;
 }
 
-/* ---------- Section labels — small, muted, no big vertical eaten ---------- */
+/* ---------- Section labels — bright white, small uppercase ---------- */
 .ad-section-label,
 .ad-section-label p {
     margin: 6px 0 2px 0 !important;
@@ -23,7 +23,15 @@ button[id*="adetailer_ad_preset_save"] {
     font-weight: 600 !important;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    opacity: 0.65;
+    color: #ffffff !important;
+    opacity: 1 !important;
+}
+
+/* ---------- Brighten placeholder text in our textboxes ---------- */
+[id*="adetailer_ad_preset_name"] textarea::placeholder,
+.ad-prompt-row textarea::placeholder {
+    color: rgba(255, 255, 255, 0.78) !important;
+    opacity: 1 !important;
 }
 
 /* Preset status line: faded by default so it doesn't shout for attention. */
