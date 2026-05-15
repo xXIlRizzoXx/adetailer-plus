@@ -12,6 +12,7 @@ from aaaaaa.conditional import InputAccordion
 from adetailer import ADETAILER, __version__
 from adetailer.args import ALL_ARGS, MASK_MERGE_INVERT
 from adetailer.classes import get_model_class_names
+from adetailer.persistence import load_state, save_tab_state
 from controlnet_ext import controlnet_exists, controlnet_type, get_cn_models
 
 if controlnet_type == "forge":
@@ -86,11 +87,20 @@ def on_widget_change(state: dict, value: Any, *, attr: str):
     return state
 
 
-def on_generate_click(state: dict, *values: Any):
+def on_generate_click(state: dict, *values: Any, tab_index: int = 0):
     for attr, value in zip(ALL_ARGS.attrs, values):
         state[attr] = value  # noqa: PERF403
     state["is_api"] = ()
+    # Best-effort persistence: stash the just-clicked values so they come
+    # back as the defaults at next WebUI start. Never raise — see
+    # adetailer.persistence for the swallowed-error policy.
+    save_tab_state(tab_index, state)
     return state
+
+
+def _sv(saved: dict[str, Any], attr: str, default):
+    """Saved value for `attr` if present, else `default`."""
+    return saved.get(attr, default) if attr in saved else default
 
 
 def on_ad_model_update(model: str, model_mapping: dict[str, str] | None = None):
@@ -165,6 +175,11 @@ def adui(
     infotext_fields = []
     eid = partial(elem_id, n=0, is_img2img=is_img2img)
 
+    # Load per-tab saved state from disk once per UI build. The dict is
+    # passed down into one_ui_group so each widget can read its previous
+    # value as a default.
+    saved_state = load_state()
+
     with InputAccordion(
         value=False,
         elem_id=eid("ad_main_accordion"),
@@ -205,6 +220,7 @@ def adui(
                         n=n,
                         is_img2img=is_img2img,
                         webui_info=webui_info,
+                        saved_tab_state=saved_state.get(str(n), {}),
                     )
 
                 all_widgets.append(w)
@@ -226,18 +242,10 @@ def adui(
     return components, infotext_fields
 
 
-# Attrs that the copy/paste clipboard ignores. Each tab keeps its own
-# detector + class filter + enable checkbox — those are the levers that make
-# each tab DIFFERENT. The copy/paste is for sharing processing settings
-# (prompt, denoise, padding, sampler, controlnet, etc.) across tabs.
-_COPY_EXCLUDE_ATTRS = frozenset((
-    "ad_model",
-    "ad_model_classes",
-    "ad_model_classes_exclude",
-    "ad_model_classes_excluded",
-    "ad_classes_sequential",
-    "ad_tab_enable",
-))
+# Copy/paste includes EVERY ADetailer arg by default — user explicitly
+# requested this. Keeping the exclusion mechanism in place (empty for now)
+# so it's a one-line revert if we ever want to carve out exceptions.
+_COPY_EXCLUDE_ATTRS: frozenset[str] = frozenset()
 
 
 def _copyable_attrs() -> list[str]:
@@ -261,12 +269,15 @@ def _wire_copy_paste(
         def _make_copy_fn(idx: int):
             def _copy_fn(*values):
                 new_clip = (idx, list(values))
-                label = f"Paste settings from {ordinal(idx + 1)} tab here"
+                label = f"\U0001F4E5 Paste settings from {ordinal(idx + 1)} tab here"
                 paste_updates = []
                 for j in range(num_models):
                     if j == idx:
                         paste_updates.append(
-                            gr.update(value="Paste settings", interactive=False)
+                            gr.update(
+                                value="\U0001F4E5 Paste settings",
+                                interactive=False,
+                            )
                         )
                     else:
                         paste_updates.append(
@@ -313,9 +324,13 @@ def one_ui_group(
     n: int,
     is_img2img: bool,
     webui_info: WebuiInfo,
+    saved_tab_state: "dict[str, Any] | None" = None,
 ):
     w = Widgets()
     eid = partial(elem_id, n=n, is_img2img=is_img2img)
+
+    saved = saved_tab_state or {}
+    sv = partial(_sv, saved)
 
     model_choices = (
         [*webui_info.ad_model_list, "None"]
@@ -328,22 +343,28 @@ def one_ui_group(
     # Paste buttons enable with the source-tab label.
     with gr.Row(variant="compact"):
         copy_btn = gr.Button(
-            value="Copy settings",
+            value="\U0001F4CB Copy settings",
             elem_id=eid("ad_copy_settings"),
             size="sm",
         )
         paste_btn = gr.Button(
-            value="Paste settings",
+            value="\U0001F4E5 Paste settings",
             elem_id=eid("ad_paste_settings"),
             interactive=False,
             size="sm",
         )
 
+    # Saved model name may refer to a model the user deleted between sessions.
+    # Fall back to the default first choice if it's not in current choices.
+    _saved_model = sv("ad_model", model_choices[0])
+    if _saved_model not in model_choices:
+        _saved_model = model_choices[0]
+
     with gr.Group():
         with gr.Row(variant="compact"):
             w.ad_tab_enable = gr.Checkbox(
                 label=f"Enable this tab ({ordinal(n + 1)})",
-                value=True,
+                value=sv("ad_tab_enable", True),
                 visible=True,
                 elem_id=eid("ad_tab_enable"),
             )
@@ -352,7 +373,7 @@ def one_ui_group(
             w.ad_model = gr.Dropdown(
                 label="ADetailer detector" + suffix(n),
                 choices=model_choices,
-                value=model_choices[0],
+                value=_saved_model,
                 visible=True,
                 type="value",
                 elem_id=eid("ad_model"),
@@ -362,7 +383,7 @@ def one_ui_group(
         with gr.Row():
             w.ad_model_classes = gr.Textbox(
                 label="ADetailer detector classes (YOLO-World)" + suffix(n),
-                value="",
+                value=sv("ad_model_classes", ""),
                 visible=False,
                 elem_id=eid("ad_model_classes"),
             )
@@ -380,13 +401,13 @@ def one_ui_group(
         with gr.Row():
             w.ad_model_classes_exclude = gr.Checkbox(
                 label="Exclude selected (NOT)" + suffix(n),
-                value=False,
+                value=sv("ad_model_classes_exclude", False),
                 visible=True,
                 elem_id=eid("ad_model_classes_exclude"),
             )
             w.ad_classes_sequential = gr.Checkbox(
                 label="Process classes sequentially" + suffix(n),
-                value=False,
+                value=sv("ad_classes_sequential", False),
                 visible=True,
                 elem_id=eid("ad_classes_sequential"),
                 info="Run one detection+inpaint pass per selected class, in dropdown order. Each pass uses the previous pass's output as input. Ignored in NOT mode or with fewer than 2 classes selected.",
@@ -394,7 +415,7 @@ def one_ui_group(
             # Mirror of the dropdown when exclude=True; hidden, used as the
             # backing arg in ALL_ARGS.
             w.ad_model_classes_excluded = gr.Textbox(
-                value="",
+                value=sv("ad_model_classes_excluded", ""),
                 visible=False,
                 elem_id=eid("ad_model_classes_excluded"),
             )
@@ -436,7 +457,7 @@ def one_ui_group(
     with gr.Group():
         with gr.Row(elem_id=eid("ad_toprow_prompt")):
             w.ad_prompt = gr.Textbox(
-                value="",
+                value=sv("ad_prompt", ""),
                 label="ad_prompt" + suffix(n),
                 show_label=False,
                 lines=3,
@@ -448,7 +469,7 @@ def one_ui_group(
 
         with gr.Row(elem_id=eid("ad_toprow_negative_prompt")):
             w.ad_negative_prompt = gr.Textbox(
-                value="",
+                value=sv("ad_negative_prompt", ""),
                 label="ad_negative_prompt" + suffix(n),
                 show_label=False,
                 lines=2,
@@ -462,22 +483,22 @@ def one_ui_group(
         with gr.Accordion(
             "Detection", open=False, elem_id=eid("ad_detection_accordion")
         ):
-            detection(w, n, is_img2img)
+            detection(w, n, is_img2img, saved)
 
         with gr.Accordion(
             "Mask Preprocessing",
             open=False,
             elem_id=eid("ad_mask_preprocessing_accordion"),
         ):
-            mask_preprocessing(w, n, is_img2img)
+            mask_preprocessing(w, n, is_img2img, saved)
 
         with gr.Accordion(
             "Inpainting", open=False, elem_id=eid("ad_inpainting_accordion")
         ):
-            inpainting(w, n, is_img2img, webui_info)
+            inpainting(w, n, is_img2img, webui_info, saved)
 
     with gr.Group():
-        controlnet(w, n, is_img2img)
+        controlnet(w, n, is_img2img, saved)
 
     state = gr.State(lambda: state_init(w))
 
@@ -489,7 +510,10 @@ def one_ui_group(
     all_inputs = [state, *w.tolist()]
     target_button = webui_info.i2i_button if is_img2img else webui_info.t2i_button
     target_button.click(
-        fn=on_generate_click, inputs=all_inputs, outputs=state, queue=False
+        fn=partial(on_generate_click, tab_index=n),
+        inputs=all_inputs,
+        outputs=state,
+        queue=False,
     )
 
     infotext_fields = [(getattr(w, attr), name + suffix(n)) for attr, name in ALL_ARGS]
@@ -497,8 +521,11 @@ def one_ui_group(
     return w, copy_btn, paste_btn, state, infotext_fields
 
 
-def detection(w: Widgets, n: int, is_img2img: bool):
+def detection(
+    w: Widgets, n: int, is_img2img: bool, saved: dict[str, Any] | None = None
+):
     eid = partial(elem_id, n=n, is_img2img=is_img2img)
+    sv = partial(_sv, saved or {})
 
     with gr.Row():
         with gr.Column(variant="compact"):
@@ -507,13 +534,13 @@ def detection(w: Widgets, n: int, is_img2img: bool):
                 minimum=0.0,
                 maximum=1.0,
                 step=0.01,
-                value=0.3,
+                value=sv("ad_confidence", 0.3),
                 visible=True,
                 elem_id=eid("ad_confidence"),
             )
             w.ad_mask_filter_method = gr.Radio(
                 choices=["Area", "Confidence"],
-                value="Area",
+                value=sv("ad_mask_filter_method", "Area"),
                 label="Method to filter top k masks by (confidence or area)"
                 + suffix(n),
                 visible=True,
@@ -524,7 +551,7 @@ def detection(w: Widgets, n: int, is_img2img: bool):
                 minimum=0,
                 maximum=10,
                 step=1,
-                value=0,
+                value=sv("ad_mask_k", 0),
                 visible=True,
                 elem_id=eid("ad_mask_k"),
             )
@@ -535,7 +562,7 @@ def detection(w: Widgets, n: int, is_img2img: bool):
                 minimum=0.0,
                 maximum=1.0,
                 step=0.001,
-                value=0.0,
+                value=sv("ad_mask_min_ratio", 0.0),
                 visible=True,
                 elem_id=eid("ad_mask_min_ratio"),
             )
@@ -544,14 +571,17 @@ def detection(w: Widgets, n: int, is_img2img: bool):
                 minimum=0.0,
                 maximum=1.0,
                 step=0.001,
-                value=1.0,
+                value=sv("ad_mask_max_ratio", 1.0),
                 visible=True,
                 elem_id=eid("ad_mask_max_ratio"),
             )
 
 
-def mask_preprocessing(w: Widgets, n: int, is_img2img: bool):
+def mask_preprocessing(
+    w: Widgets, n: int, is_img2img: bool, saved: dict[str, Any] | None = None
+):
     eid = partial(elem_id, n=n, is_img2img=is_img2img)
+    sv = partial(_sv, saved or {})
 
     with gr.Group():
         with gr.Row():
@@ -561,7 +591,7 @@ def mask_preprocessing(w: Widgets, n: int, is_img2img: bool):
                     minimum=-200,
                     maximum=200,
                     step=1,
-                    value=0,
+                    value=sv("ad_x_offset", 0),
                     visible=True,
                     elem_id=eid("ad_x_offset"),
                 )
@@ -570,7 +600,7 @@ def mask_preprocessing(w: Widgets, n: int, is_img2img: bool):
                     minimum=-200,
                     maximum=200,
                     step=1,
-                    value=0,
+                    value=sv("ad_y_offset", 0),
                     visible=True,
                     elem_id=eid("ad_y_offset"),
                 )
@@ -581,7 +611,7 @@ def mask_preprocessing(w: Widgets, n: int, is_img2img: bool):
                     minimum=-128,
                     maximum=128,
                     step=4,
-                    value=4,
+                    value=sv("ad_dilate_erode", 4),
                     visible=True,
                     elem_id=eid("ad_dilate_erode"),
                 )
@@ -590,14 +620,21 @@ def mask_preprocessing(w: Widgets, n: int, is_img2img: bool):
             w.ad_mask_merge_invert = gr.Radio(
                 label="Mask merge mode" + suffix(n),
                 choices=MASK_MERGE_INVERT,
-                value="None",
+                value=sv("ad_mask_merge_invert", "None"),
                 elem_id=eid("ad_mask_merge_invert"),
                 info="None: do nothing, Merge: merge masks, Merge and Invert: merge all masks and invert",
             )
 
 
-def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # noqa: PLR0915
+def inpainting(  # noqa: PLR0915
+    w: Widgets,
+    n: int,
+    is_img2img: bool,
+    webui_info: WebuiInfo,
+    saved: dict[str, Any] | None = None,
+):
     eid = partial(elem_id, n=n, is_img2img=is_img2img)
+    sv = partial(_sv, saved or {})
 
     with gr.Group():
         with gr.Row():
@@ -606,7 +643,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                 minimum=0,
                 maximum=64,
                 step=1,
-                value=4,
+                value=sv("ad_mask_blur", 4),
                 visible=True,
                 elem_id=eid("ad_mask_blur"),
             )
@@ -616,7 +653,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                 minimum=0.0,
                 maximum=1.0,
                 step=0.01,
-                value=0.4,
+                value=sv("ad_denoising_strength", 0.4),
                 visible=True,
                 elem_id=eid("ad_denoising_strength"),
             )
@@ -625,7 +662,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
             with gr.Column(variant="compact"):
                 w.ad_inpaint_only_masked = gr.Checkbox(
                     label="Inpaint only masked" + suffix(n),
-                    value=True,
+                    value=sv("ad_inpaint_only_masked", True),
                     visible=True,
                     elem_id=eid("ad_inpaint_only_masked"),
                 )
@@ -634,7 +671,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                     minimum=0,
                     maximum=256,
                     step=4,
-                    value=32,
+                    value=sv("ad_inpaint_only_masked_padding", 32),
                     visible=True,
                     elem_id=eid("ad_inpaint_only_masked_padding"),
                 )
@@ -649,7 +686,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
             with gr.Column(variant="compact"):
                 w.ad_use_inpaint_width_height = gr.Checkbox(
                     label="Use separate width/height" + suffix(n),
-                    value=False,
+                    value=sv("ad_use_inpaint_width_height", False),
                     visible=True,
                     elem_id=eid("ad_use_inpaint_width_height"),
                 )
@@ -659,7 +696,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                     minimum=64,
                     maximum=2048,
                     step=4,
-                    value=512,
+                    value=sv("ad_inpaint_width", 512),
                     visible=True,
                     elem_id=eid("ad_inpaint_width"),
                 )
@@ -669,7 +706,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                     minimum=64,
                     maximum=2048,
                     step=4,
-                    value=512,
+                    value=sv("ad_inpaint_height", 512),
                     visible=True,
                     elem_id=eid("ad_inpaint_height"),
                 )
@@ -685,7 +722,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
             with gr.Column(variant="compact"):
                 w.ad_use_steps = gr.Checkbox(
                     label="Use separate steps" + suffix(n),
-                    value=False,
+                    value=sv("ad_use_steps", False),
                     visible=True,
                     elem_id=eid("ad_use_steps"),
                 )
@@ -695,7 +732,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                     minimum=1,
                     maximum=150,
                     step=1,
-                    value=28,
+                    value=sv("ad_steps", 28),
                     visible=True,
                     elem_id=eid("ad_steps"),
                 )
@@ -710,7 +747,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
             with gr.Column(variant="compact"):
                 w.ad_use_cfg_scale = gr.Checkbox(
                     label="Use separate CFG scale" + suffix(n),
-                    value=False,
+                    value=sv("ad_use_cfg_scale", False),
                     visible=True,
                     elem_id=eid("ad_use_cfg_scale"),
                 )
@@ -720,7 +757,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                     minimum=0.0,
                     maximum=30.0,
                     step=0.5,
-                    value=7.0,
+                    value=sv("ad_cfg_scale", 7.0),
                     visible=True,
                     elem_id=eid("ad_cfg_scale"),
                 )
@@ -736,17 +773,20 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
             with gr.Column(variant="compact"):
                 w.ad_use_checkpoint = gr.Checkbox(
                     label="Use separate checkpoint" + suffix(n),
-                    value=False,
+                    value=sv("ad_use_checkpoint", False),
                     visible=True,
                     elem_id=eid("ad_use_checkpoint"),
                 )
 
                 ckpts = ["Use same checkpoint", *webui_info.checkpoints_list]
+                _saved_ckpt = sv("ad_checkpoint", ckpts[0])
+                if _saved_ckpt not in ckpts:
+                    _saved_ckpt = ckpts[0]
 
                 w.ad_checkpoint = gr.Dropdown(
                     label="ADetailer checkpoint" + suffix(n),
                     choices=ckpts,
-                    value=ckpts[0],
+                    value=_saved_ckpt,
                     visible=True,
                     elem_id=eid("ad_checkpoint"),
                 )
@@ -754,17 +794,20 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
             with gr.Column(variant="compact"):
                 w.ad_use_vae = gr.Checkbox(
                     label="Use separate VAE" + suffix(n),
-                    value=False,
+                    value=sv("ad_use_vae", False),
                     visible=True,
                     elem_id=eid("ad_use_vae"),
                 )
 
                 vaes = ["Use same VAE", *webui_info.vae_list]
+                _saved_vae = sv("ad_vae", vaes[0])
+                if _saved_vae not in vaes:
+                    _saved_vae = vaes[0]
 
                 w.ad_vae = gr.Dropdown(
                     label="ADetailer VAE" + suffix(n),
                     choices=vaes,
-                    value=vaes[0],
+                    value=_saved_vae,
                     visible=True,
                     elem_id=eid("ad_vae"),
                 )
@@ -772,7 +815,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
         with gr.Row(), gr.Column(variant="compact"):
             w.ad_use_sampler = gr.Checkbox(
                 label="Use separate sampler" + suffix(n),
-                value=False,
+                value=sv("ad_use_sampler", False),
                 visible=True,
                 elem_id=eid("ad_use_sampler"),
             )
@@ -781,12 +824,15 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                 "Use same sampler",
                 *webui_info.sampler_names,
             ]
+            _saved_sampler = sv("ad_sampler", sampler_names[1])
+            if _saved_sampler not in sampler_names:
+                _saved_sampler = sampler_names[1]
 
             with gr.Row():
                 w.ad_sampler = gr.Dropdown(
                     label="ADetailer sampler" + suffix(n),
                     choices=sampler_names,
-                    value=sampler_names[1],
+                    value=_saved_sampler,
                     visible=True,
                     elem_id=eid("ad_sampler"),
                 )
@@ -795,10 +841,14 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                     "Use same scheduler",
                     *webui_info.scheduler_names,
                 ]
+                _saved_scheduler = sv("ad_scheduler", scheduler_names[0])
+                if _saved_scheduler not in scheduler_names:
+                    _saved_scheduler = scheduler_names[0]
+
                 w.ad_scheduler = gr.Dropdown(
                     label="ADetailer scheduler" + suffix(n),
                     choices=scheduler_names,
-                    value=scheduler_names[0],
+                    value=_saved_scheduler,
                     visible=len(scheduler_names) > 1,
                     elem_id=eid("ad_scheduler"),
                 )
@@ -814,7 +864,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
             with gr.Column(variant="compact"):
                 w.ad_use_noise_multiplier = gr.Checkbox(
                     label="Use separate noise multiplier" + suffix(n),
-                    value=False,
+                    value=sv("ad_use_noise_multiplier", False),
                     visible=True,
                     elem_id=eid("ad_use_noise_multiplier"),
                 )
@@ -824,7 +874,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                     minimum=0.5,
                     maximum=1.5,
                     step=0.01,
-                    value=1.0,
+                    value=sv("ad_noise_multiplier", 1.0),
                     visible=True,
                     elem_id=eid("ad_noise_multiplier"),
                 )
@@ -839,7 +889,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
             with gr.Column(variant="compact"):
                 w.ad_use_clip_skip = gr.Checkbox(
                     label="Use separate CLIP skip" + suffix(n),
-                    value=False,
+                    value=sv("ad_use_clip_skip", False),
                     visible=True,
                     elem_id=eid("ad_use_clip_skip"),
                 )
@@ -849,7 +899,7 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
                     minimum=1,
                     maximum=12,
                     step=1,
-                    value=1,
+                    value=sv("ad_clip_skip", 1),
                     visible=True,
                     elem_id=eid("ad_clip_skip"),
                 )
@@ -864,21 +914,27 @@ def inpainting(w: Widgets, n: int, is_img2img: bool, webui_info: WebuiInfo):  # 
         with gr.Row(), gr.Column(variant="compact"):
             w.ad_restore_face = gr.Checkbox(
                 label="Restore faces after ADetailer" + suffix(n),
-                value=False,
+                value=sv("ad_restore_face", False),
                 elem_id=eid("ad_restore_face"),
             )
 
 
-def controlnet(w: Widgets, n: int, is_img2img: bool):
+def controlnet(
+    w: Widgets, n: int, is_img2img: bool, saved: dict[str, Any] | None = None
+):
     eid = partial(elem_id, n=n, is_img2img=is_img2img)
+    sv = partial(_sv, saved or {})
     cn_models = ["None", "Passthrough", *get_cn_models()]
+    _saved_cn = sv("ad_controlnet_model", "None")
+    if _saved_cn not in cn_models:
+        _saved_cn = "None"
 
     with gr.Row(variant="panel"):
         with gr.Column(variant="compact"):
             w.ad_controlnet_model = gr.Dropdown(
                 label="ControlNet model" + suffix(n),
                 choices=cn_models,
-                value="None",
+                value=_saved_cn,
                 visible=True,
                 type="value",
                 interactive=controlnet_exists,
@@ -888,7 +944,7 @@ def controlnet(w: Widgets, n: int, is_img2img: bool):
             w.ad_controlnet_module = gr.Dropdown(
                 label="ControlNet module" + suffix(n),
                 choices=["None"],
-                value="None",
+                value=sv("ad_controlnet_module", "None"),
                 visible=False,
                 type="value",
                 interactive=controlnet_exists,
@@ -900,7 +956,7 @@ def controlnet(w: Widgets, n: int, is_img2img: bool):
                 minimum=0.0,
                 maximum=1.0,
                 step=0.01,
-                value=1.0,
+                value=sv("ad_controlnet_weight", 1.0),
                 visible=True,
                 interactive=controlnet_exists,
                 elem_id=eid("ad_controlnet_weight"),
@@ -919,7 +975,7 @@ def controlnet(w: Widgets, n: int, is_img2img: bool):
                 minimum=0.0,
                 maximum=1.0,
                 step=0.01,
-                value=0.0,
+                value=sv("ad_controlnet_guidance_start", 0.0),
                 visible=True,
                 interactive=controlnet_exists,
                 elem_id=eid("ad_controlnet_guidance_start"),
@@ -930,7 +986,7 @@ def controlnet(w: Widgets, n: int, is_img2img: bool):
                 minimum=0.0,
                 maximum=1.0,
                 step=0.01,
-                value=1.0,
+                value=sv("ad_controlnet_guidance_end", 1.0),
                 visible=True,
                 interactive=controlnet_exists,
                 elem_id=eid("ad_controlnet_guidance_end"),
