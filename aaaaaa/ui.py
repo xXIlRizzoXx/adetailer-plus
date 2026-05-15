@@ -567,7 +567,7 @@ def one_ui_group(
                 elem_id=eid("ad_model_classes_dropdown"),
             )
 
-        with gr.Row():
+        with gr.Row(variant="compact"):
             w.ad_model_classes_exclude = gr.Checkbox(
                 label="Exclude selected (NOT)" + suffix(n),
                 value=sv("ad_model_classes_exclude", False),
@@ -579,7 +579,6 @@ def one_ui_group(
                 value=sv("ad_classes_sequential", False),
                 visible=True,
                 elem_id=eid("ad_classes_sequential"),
-                info="Run one detection+inpaint pass per selected class, in dropdown order. Each pass uses the previous pass's output as input. Ignored in NOT mode or with fewer than 2 classes selected.",
             )
             # Mirror of the dropdown when exclude=True; hidden, used as the
             # backing arg in ALL_ARGS.
@@ -668,13 +667,12 @@ def one_ui_group(
                 elem_id=eid("ad_negative_prompt_append"),
             )
 
-        with gr.Row():
+        with gr.Row(variant="compact"):
             w.ad_use_main_loras = gr.Checkbox(
                 label="Use LoRAs from main prompt" + suffix(n),
                 value=sv("ad_use_main_loras", False),
                 visible=True,
                 elem_id=eid("ad_use_main_loras"),
-                info="Auto-include the main prompt's <lora:...> / <lyco:...> tags in this tab's inpaint passes. Duplicates already in ad_prompt are skipped.",
             )
 
     with gr.Group():
