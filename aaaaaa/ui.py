@@ -17,6 +17,7 @@ from adetailer.presets import (
     delete_preset,
     get_preset,
     get_preset_names,
+    rename_preset,
     save_preset,
 )
 from controlnet_ext import controlnet_exists, controlnet_type, get_cn_models
@@ -358,9 +359,9 @@ def _wire_presets(
 ) -> None:
     """Wire each tab's preset Load/Save/Delete/Reset buttons.
 
-    Layout reminder — each entry of `all_presets` is the 7-tuple returned
-    from one_ui_group: (dropdown, load_btn, delete_btn, name_box,
-    save_btn, reset_btn, status_md).
+    Layout reminder — each entry of `all_presets` is the 8-tuple returned
+    from one_ui_group: (dropdown, load_btn, rename_btn, delete_btn,
+    name_box, save_btn, reset_btn, status_md).
 
     Saving or deleting from any tab refreshes ALL tabs' dropdown choices.
     Reset is per-tab and ONLY clears the preset library + tab clipboard
@@ -392,6 +393,7 @@ def _wire_presets(
         (
             dropdown,
             load_btn,
+            rename_btn,
             delete_btn,
             name_box,
             save_btn,
@@ -481,6 +483,43 @@ def _wire_presets(
             queue=False,
         )
 
+        # RENAME: take the currently-selected preset and the value of
+        # the 'Preset name to save' textbox; rename the preset on disk
+        # to the new name and refresh every tab's dropdown so it points
+        # at the renamed entry.
+        def _make_rename():
+            def _rename(selected: str | None, new_name: str):
+                if _is_none(selected):
+                    return [
+                        "⚠️ Pick a preset first.",
+                        *_refresh_dropdowns_update(),
+                    ]
+                new_name = (new_name or "").strip()
+                if not new_name:
+                    return [
+                        "⚠️ Enter the new name in the 'Preset name to save' box first.",
+                        *_refresh_dropdowns_update(selected=selected),
+                    ]
+                ok, msg = rename_preset(selected, new_name)
+                if not ok:
+                    return [
+                        f"⚠️ Rename failed: {msg}.",
+                        *_refresh_dropdowns_update(selected=selected),
+                    ]
+                return [
+                    f"✏️ Renamed '{selected}' → '{new_name}'.",
+                    *_refresh_dropdowns_update(selected=new_name),
+                ]
+
+            return _rename
+
+        rename_btn.click(
+            fn=_make_rename(),
+            inputs=[dropdown, name_box],
+            outputs=[status_md, *all_dropdowns],
+            queue=False,
+        )
+
         # RESET: only clears the preset library + tab clipboard sections.
         # - Preset dropdown of THIS tab back to (none)
         # - Preset name textbox emptied
@@ -555,6 +594,12 @@ def one_ui_group(
         preset_load_btn = gr.Button(
             value="\U0001F4C2 Load",
             elem_id=eid("ad_preset_load"),
+            size="sm",
+            scale=1,
+        )
+        preset_rename_btn = gr.Button(
+            value="✏️ Rename",
+            elem_id=eid("ad_preset_rename"),
             size="sm",
             scale=1,
         )
@@ -802,6 +847,7 @@ def one_ui_group(
     preset_widgets = (
         preset_dropdown,
         preset_load_btn,
+        preset_rename_btn,
         preset_delete_btn,
         preset_name_box,
         preset_save_btn,

@@ -100,3 +100,27 @@ def delete_preset(name: str) -> bool:
 def get_preset(name: str) -> dict[str, Any]:
     """Return the preset's state dict, or {} if not found."""
     return load_presets().get((name or "").strip(), {})
+
+
+def rename_preset(old_name: str, new_name: str) -> tuple[bool, str]:
+    """Rename a preset on disk.
+
+    Returns (success, message). On failure `message` describes why so the
+    UI can surface it (preset missing, invalid name, name already taken).
+    """
+    old_name = (old_name or "").strip()
+    new_name = (new_name or "").strip()
+    if not old_name:
+        return False, "no preset selected"
+    if not is_valid_name(new_name):
+        return False, f"invalid name '{new_name}'"
+    if new_name == old_name:
+        return True, "no change"
+    presets = _load_raw()
+    if old_name not in presets:
+        return False, f"preset '{old_name}' not found"
+    if new_name in presets:
+        return False, f"'{new_name}' already exists"
+    presets[new_name] = presets.pop(old_name)
+    _write_raw(presets)
+    return True, "ok"
