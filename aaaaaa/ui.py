@@ -862,6 +862,16 @@ def one_ui_group(
                 visible=True,
                 elem_id=eid("ad_use_main_loras"),
             )
+            # Sub-toggle: only relevant when ad_use_main_loras is on, but kept
+            # always visible so the user can preset it and it appears next to
+            # its parent. The script-side wiring already guards on both flags.
+            w.ad_use_lora_triggers = gr.Checkbox(
+                label="Append LoRA triggers from name" + suffix(n),
+                info="Expects the convention <lora:name (trigger):weight>",
+                value=sv("ad_use_lora_triggers", False),
+                visible=True,
+                elem_id=eid("ad_use_lora_triggers"),
+            )
 
     with gr.Group():
         with gr.Accordion(

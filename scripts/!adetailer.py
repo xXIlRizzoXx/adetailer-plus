@@ -108,12 +108,37 @@ print(
 # <lyco:...> tag including its weights so it can be re-appended verbatim.
 _LORA_TAG_RE = re.compile(r"<(?:lora|lyco):[^>]+>", re.IGNORECASE)
 
+# Trigger-in-name convention (Anzhc/aadetailer-reforge): the substring inside
+# the FIRST balanced parentheses inside a LoRA name is treated as the trigger
+# word(s) that activate that LoRA's style. Example:
+#   <lora:my_style (cool trigger phrase):1>  →  trigger = "cool trigger phrase"
+# Non-greedy and stops at the first `)` so weirdly-nested names degrade
+# gracefully rather than swallowing the `:weight>` tail.
+_LORA_TRIGGER_RE = re.compile(r"\(([^)]+)\)")
+
 
 def _extract_lora_tags(prompt: str) -> list[str]:
     """Return the LoRA/LyCORIS tags present in `prompt`, in order, no dedup."""
     if not prompt:
         return []
     return _LORA_TAG_RE.findall(prompt)
+
+
+def _extract_lora_triggers(tags: list[str]) -> list[str]:
+    """For each `<lora:name (trigger):weight>` tag, return the parenthesised
+    trigger phrase. Tags without parentheses contribute nothing.
+
+    Order is preserved. Duplicates kept; the caller decides what to do with
+    them (we deduplicate against the prompt body, not against each other).
+    """
+    triggers: list[str] = []
+    for tag in tags:
+        m = _LORA_TRIGGER_RE.search(tag)
+        if m:
+            phrase = m.group(1).strip()
+            if phrase:
+                triggers.append(phrase)
+    return triggers
 
 
 def _merge_lora_tags(prompt: str, extras: list[str]) -> str:
@@ -127,6 +152,22 @@ def _merge_lora_tags(prompt: str, extras: list[str]) -> str:
     base = (prompt or "").rstrip().rstrip(",").rstrip()
     tail = " ".join(to_add)
     return f"{base} {tail}" if base else tail
+
+
+def _append_lora_triggers(prompt: str, triggers: list[str]) -> str:
+    """Append `triggers` as a comma-separated tail to `prompt`, skipping any
+    phrase that already appears in the prompt (case-insensitive whole-substring
+    match — good enough for natural-language trigger words).
+    """
+    if not triggers:
+        return prompt
+    haystack = (prompt or "").lower()
+    to_add = [t for t in triggers if t.lower() not in haystack]
+    if not to_add:
+        return prompt
+    base = (prompt or "").rstrip().rstrip(",").rstrip()
+    tail = ", ".join(to_add)
+    return f"{base}, {tail}" if base else tail
 
 
 class AfterDetailerScript(scripts.Script):
@@ -322,11 +363,17 @@ class AfterDetailerScript(scripts.Script):
         replacements: list[PromptSR],
         append: str = "",
         include_loras_from: str = "",
+        include_triggers: bool = False,
     ) -> list[str]:
         prompts = re.split(r"\s*\[SEP\]\s*", ad_prompt)
         blank_replacement = self.prompt_blank_replacement(all_prompts, i, default)
         append_clean = append.strip().lstrip(",").strip()
         extra_loras = _extract_lora_tags(include_loras_from)
+        # Trigger words live INSIDE the LoRA name as `<lora:name (trigger):w>`.
+        # When `include_triggers` is on, we strip them out of `extra_loras` and
+        # append them to the prompt as comma-separated tokens after the LoRA
+        # tags themselves. See `_extract_lora_triggers` for the convention.
+        extra_triggers = _extract_lora_triggers(extra_loras) if include_triggers else []
         for n in range(len(prompts)):
             if not prompts[n]:
                 prompts[n] = blank_replacement
@@ -348,6 +395,12 @@ class AfterDetailerScript(scripts.Script):
             # and duplicates skipped.
             if extra_loras:
                 prompts[n] = _merge_lora_tags(prompts[n], extra_loras)
+
+            # Trigger auto-append: only when the user opted in and the LoRA
+            # names follow the `name (trigger):weight` convention. Duplicates
+            # against the current prompt body are skipped (case-insensitive).
+            if extra_triggers:
+                prompts[n] = _append_lora_triggers(prompts[n], extra_triggers)
         return prompts
 
     def get_prompt(self, p, args: ADetailerArgs) -> tuple[list[str], list[str]]:
@@ -372,7 +425,13 @@ class AfterDetailerScript(scripts.Script):
             replacements=prompt_sr,
             append=args.ad_prompt_append,
             include_loras_from=loras_source,
+            include_triggers=bool(
+                args.ad_use_main_loras and args.ad_use_lora_triggers
+            ),
         )
+        # Triggers only make sense on the positive prompt — leaving the
+        # negative pipeline unchanged keeps the negative prompt the exact
+        # same shape it would have without this feature.
         negative_prompt = self._get_prompt(
             ad_prompt=args.ad_negative_prompt,
             all_prompts=p.all_negative_prompts,

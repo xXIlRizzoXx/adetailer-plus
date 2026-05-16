@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-05-16 (feat: LoRA trigger extraction)
+
+- **LoRA trigger extraction** — new sub-toggle `Append LoRA triggers from name` (`ad_use_lora_triggers`, default off) under the existing `Use LoRAs from main prompt` checkbox. When both checkboxes are on, ADetailer parses the convention `<lora:name (trigger phrase):weight>` (from [Anzhc/aadetailer-reforge](https://github.com/Anzhc/aadetailer-reforge)) and appends the parenthesised trigger phrase to the inpaint prompt. Triggers are deduplicated case-insensitively against the existing prompt body. Backwards-compatible: LoRA tags without parentheses are unaffected, and the negative-prompt pipeline is left untouched (triggers only make sense in the positive).
+- Implementation:
+  - New regex `_LORA_TRIGGER_RE = re.compile(r"\(([^)]+)\)")` matching the first non-greedy parenthesised substring inside a LoRA tag's name.
+  - New helpers `_extract_lora_triggers(tags)` and `_append_lora_triggers(prompt, triggers)` in `scripts/!adetailer.py`.
+  - `_get_prompt` gains an `include_triggers: bool = False` keyword. `get_prompt` passes `bool(args.ad_use_main_loras and args.ad_use_lora_triggers)`.
+  - New pydantic field `ad_use_lora_triggers: bool = False` and infotext mapping entry `"ADetailer use lora triggers"`.
+  - UI: a second checkbox added to the existing LoRA row, with `info=` hint showing the expected convention.
+- Status: implemented, **awaiting hands-on verification** by the repo owner (Test 20 added to the pending list).
+
 ## 2026-05-16 (rename → ADetailer Ultimate)
 
 - Project renamed to **ADetailer Ultimate**: GitHub repo `xXIlRizzoXx/adetailer-plus` → `xXIlRizzoXx/adetailer-ultimate`. README title and install URL updated. `style.css` header comment updated. The slug was briefly `adetailer_ultimate` (underscore) for a few minutes before being normalised to `adetailer-ultimate` (hyphen) to match the SD WebUI extension-ecosystem convention. All previous URLs continue to work via GitHub's automatic redirect chain (`xXIlRizzoXx/adetailer` → `adetailer-plus` → `adetailer_ultimate` → `adetailer-ultimate`).

@@ -65,6 +65,7 @@ class ADetailerArgs(BaseModel, extra=Extra.forbid):
     ad_prompt_append: str = ""
     ad_negative_prompt_append: str = ""
     ad_use_main_loras: bool = False
+    ad_use_lora_triggers: bool = False
     ad_confidence: confloat(ge=0.0, le=1.0) = 0.3
     ad_mask_filter_method: Literal["Area", "Confidence"] = "Area"
     ad_mask_k: NonNegativeInt = 0
@@ -239,6 +240,7 @@ _all_args = [
     ("ad_prompt_append", "ADetailer prompt append"),
     ("ad_negative_prompt_append", "ADetailer negative prompt append"),
     ("ad_use_main_loras", "ADetailer use main loras"),
+    ("ad_use_lora_triggers", "ADetailer use lora triggers"),
     ("ad_confidence", "ADetailer confidence"),
     ("ad_mask_filter_method", "ADetailer method to decide top k masks"),
     ("ad_mask_k", "ADetailer mask only top k"),
