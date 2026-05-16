@@ -49,6 +49,35 @@ button[id*="adetailer_ad_preview_btn"] {
     opacity: 0.75;
 }
 
+/* Preset preview block: shows the selected preset's content live.
+ * Slightly indented, smaller font, no border — should feel like a
+ * helper hint, not a UI panel. */
+.ad-preset-preview {
+    margin: 4px 0 6px 0 !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    opacity: 0.85;
+    border-left: 2px solid rgba(255, 255, 255, 0.15) !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-radius: 4px !important;
+}
+.ad-preset-preview p,
+.ad-preset-preview li,
+.ad-preset-preview ul {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.ad-preset-preview ul {
+    list-style: none !important;
+    padding-left: 0 !important;
+}
+.ad-preset-preview code {
+    font-size: 10px !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
 /* Breathing room between the dropdown/Load/Delete row and the
  * name+Save row inside the preset library block. */
 .ad-preset-save-row {

@@ -102,6 +102,71 @@ def get_preset(name: str) -> dict[str, Any]:
     return load_presets().get((name or "").strip(), {})
 
 
+def export_presets_json() -> str:
+    """Return the entire preset library as a JSON string.
+
+    Used by the UI export button to feed a `gr.File` download. The format
+    matches the on-disk `user_presets.json` exactly, so a round-trip
+    export → import is byte-identical (modulo key ordering).
+    """
+    presets = _load_raw()
+    return json.dumps(presets, indent=2, default=str, sort_keys=True)
+
+
+def import_presets_json(payload: str, *, overwrite: bool = False) -> tuple[int, int, list[str]]:
+    """Merge an exported JSON payload into the local preset library.
+
+    Parameters
+    ----------
+    payload : str
+        Raw JSON text. Must decode to a dict[str, dict].
+    overwrite : bool
+        If True, incoming presets replace any local preset with the same
+        name. If False, conflicting names are skipped and reported in the
+        ``skipped`` list of the return tuple.
+
+    Returns
+    -------
+    (added, replaced, skipped) : tuple[int, int, list[str]]
+        - ``added``    — number of new preset names written.
+        - ``replaced`` — number of existing presets overwritten (only > 0
+          when ``overwrite=True``).
+        - ``skipped``  — list of names skipped (conflicts when
+          ``overwrite=False``, plus any names that fail `is_valid_name`).
+    """
+    try:
+        incoming = json.loads(payload)
+    except (json.JSONDecodeError, TypeError):
+        return 0, 0, []
+    if not isinstance(incoming, dict):
+        return 0, 0, []
+
+    current = _load_raw()
+    added = 0
+    replaced = 0
+    skipped: list[str] = []
+    for name, value in incoming.items():
+        if not isinstance(name, str) or not isinstance(value, dict):
+            continue
+        clean_name = name.strip()
+        if not is_valid_name(clean_name):
+            skipped.append(name)
+            continue
+        if clean_name in current:
+            if overwrite:
+                current[clean_name] = {k: v for k, v in value.items() if k != "is_api"}
+                replaced += 1
+            else:
+                skipped.append(clean_name)
+            continue
+        current[clean_name] = {k: v for k, v in value.items() if k != "is_api"}
+        added += 1
+
+    if added or replaced:
+        _write_raw(current)
+    return added, replaced, skipped
+
+
 def rename_preset(old_name: str, new_name: str) -> tuple[bool, str]:
     """Rename a preset on disk.
 

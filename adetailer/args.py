@@ -64,9 +64,11 @@ class ADetailerArgs(BaseModel, extra=Extra.forbid):
     ad_negative_prompt: str = ""
     ad_prompt_append: str = ""
     ad_negative_prompt_append: str = ""
+    ad_class_prompts: str = ""
     ad_use_main_loras: bool = False
     ad_use_lora_triggers: bool = False
     ad_apply_on_hires_only: bool = False
+    ad_use_bbox_mask: bool = False
     ad_confidence: confloat(ge=0.0, le=1.0) = 0.3
     ad_mask_filter_method: Literal["Area", "Confidence"] = "Area"
     ad_mask_k: NonNegativeInt = 0
@@ -83,6 +85,8 @@ class ADetailerArgs(BaseModel, extra=Extra.forbid):
     ad_use_inpaint_width_height: bool = False
     ad_inpaint_width: PositiveInt = 512
     ad_inpaint_height: PositiveInt = 512
+    ad_use_resolution_scale: bool = False
+    ad_resolution_scale: confloat(ge=0.5, le=8.0) = 1.5
     ad_use_steps: bool = False
     ad_steps: PositiveInt = 28
     ad_use_cfg_scale: bool = False
@@ -240,9 +244,11 @@ _all_args = [
     ("ad_negative_prompt", "ADetailer negative prompt"),
     ("ad_prompt_append", "ADetailer prompt append"),
     ("ad_negative_prompt_append", "ADetailer negative prompt append"),
+    ("ad_class_prompts", "ADetailer class prompts"),
     ("ad_use_main_loras", "ADetailer use main loras"),
     ("ad_use_lora_triggers", "ADetailer use lora triggers"),
     ("ad_apply_on_hires_only", "ADetailer apply on hires only"),
+    ("ad_use_bbox_mask", "ADetailer use bbox mask"),
     ("ad_confidence", "ADetailer confidence"),
     ("ad_mask_filter_method", "ADetailer method to decide top k masks"),
     ("ad_mask_k", "ADetailer mask only top k"),
@@ -259,6 +265,8 @@ _all_args = [
     ("ad_use_inpaint_width_height", "ADetailer use inpaint width height"),
     ("ad_inpaint_width", "ADetailer inpaint width"),
     ("ad_inpaint_height", "ADetailer inpaint height"),
+    ("ad_use_resolution_scale", "ADetailer use resolution scale"),
+    ("ad_resolution_scale", "ADetailer resolution scale"),
     ("ad_use_steps", "ADetailer use separate steps"),
     ("ad_steps", "ADetailer steps"),
     ("ad_use_cfg_scale", "ADetailer use separate CFG scale"),

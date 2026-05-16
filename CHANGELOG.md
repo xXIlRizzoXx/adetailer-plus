@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-05-16 (feat: 5-feature batch — peer-fork roadmap items 3, 4, 5, 8, 9)
+
+Implements five of the remaining roadmap items in one batch. All five are 🟡 (in the codebase, awaiting hands-on verification by the repo owner — Tests 22 through 26 added to the pending sticky list).
+
+### Detection / mask
+
+- **Bounding-box mask for segmentation models** (`ad_use_bbox_mask`, default off) — new per-tab checkbox in the **Mask preprocessing** accordion. Forces the rectangular bounding box as the inpaint mask even when the YOLO model produced a precise per-pixel segmentation mask. Useful when the seg mask is too tight against the subject and the inpaint needs more breathing room. Implemented as a single conditional in `adetailer.ultralytics.ultralytics_predict` + a new `use_bbox_mask` kwarg in its signature. Inspired by [newtextdoc1111/adetailer](https://github.com/newtextdoc1111/adetailer).
+
+### Inpainting / resolution
+
+- **Scale-based inpaint resolution** (`ad_use_resolution_scale` + `ad_resolution_scale`, default off / 1.5×) — new checkbox + slider in the **Inpainting** section. When the toggle is on, the inpaint canvas is `bbox_size × scale` (rounded down to a multiple of 8 for SD UNet compatibility, 64-pixel floor). Mutually exclusive with the existing `Use separate width/height` toggle — when both are on, the fixed-dimensions toggle wins. Math centralised in `fix_p2`. Inspired by [Anzhc/aadetailer-reforge](https://github.com/Anzhc/aadetailer-reforge).
+
+### Sequential class detection / prompts
+
+- **Class-specific prompts** (`ad_class_prompts`, default empty) — new multiline textbox in the **Inpaint prompts** accordion. Syntax (one per line): `classname: positive_prompt [| negative_prompt]`. When the sequential class detection feature is on, each class's pass reads its dedicated prompt from this textbox; entries with empty values fall back to the tab's default `ad_prompt`/`ad_negative_prompt`. Lines that don't match the syntax are silently ignored. Parser `_parse_class_prompts` in `scripts/!adetailer.py`. Inspired by [newtextdoc1111/adetailer](https://github.com/newtextdoc1111/adetailer).
+
+### Preset library polish
+
+- **Live preset preview with `[SEP]`/`[PROMPT]` awareness** — new markdown block under the preset dropdown that updates on every `preset_dropdown.change` event. Shows the highlighted preset's detector, classes (include/exclude), sequential flag, prompts (truncated), and class-specific prompts summary. `[SEP]` and `[PROMPT]` tokens are wrapped in backticks with a footnote reminding the user they'll be expanded at generation time. Formatter `_format_preset_preview` in `aaaaaa/ui.py`. CSS scoped via `.ad-preset-preview` in `style.css`.
+- **Export / Import preset library to JSON** — new "Preset library export / import" accordion (collapsed by default) under the preset row. **Export**: button generates a `gr.File` download of the entire `user_presets.json` (sorted, indented). **Import**: drop a JSON file in the upload box, optionally tick "Overwrite existing on conflict", click Import. Status line summarises added / replaced / skipped counts. Cross-tab dropdown refresh after import is local-to-current-tab (other tabs pick up new presets on next UI reload). Library helpers `export_presets_json` and `import_presets_json` in `adetailer/presets.py`.
+
+### Pydantic schema additions
+
+- `ad_use_bbox_mask: bool = False`
+- `ad_use_resolution_scale: bool = False`
+- `ad_resolution_scale: confloat(ge=0.5, le=8.0) = 1.5`
+- `ad_class_prompts: str = ""`
+
+All four ship with infotext mapping entries so they round-trip through PNG-info save/load.
+
 ## 2026-05-16 (audit + fixes: txt2img/img2img parity)
 
 Code-review audit of every fork feature against both `StableDiffusionProcessingTxt2Img` and `StableDiffusionProcessingImg2Img` pipelines. Two issues found and fixed; everything else was already mode-agnostic.

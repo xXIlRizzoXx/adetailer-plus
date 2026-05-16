@@ -28,6 +28,7 @@ def ultralytics_predict(
     device: str = "",
     classes: str = "",
     exclude_classes: str = "",
+    use_bbox_mask: bool = False,
 ) -> PredictOutput[float]:
     from ultralytics import YOLO
 
@@ -83,7 +84,12 @@ def ultralytics_predict(
         return PredictOutput()
     bboxes = bboxes.tolist()
 
-    if pred[0].masks is None:
+    # Mask source: by default we trust segmentation masks when the model
+    # provides them and fall back to bbox-derived rectangles otherwise.
+    # When `use_bbox_mask` is on, we always use bbox-derived rectangles
+    # — useful when the seg mask is too tight against the subject and
+    # the inpaint needs more breathing room around the edges.
+    if use_bbox_mask or pred[0].masks is None:
         masks = create_mask_from_bbox(bboxes, image.size)
     else:
         masks = mask_to_pil(pred[0].masks.data, image.size)

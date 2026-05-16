@@ -154,6 +154,47 @@ def _merge_lora_tags(prompt: str, extras: list[str]) -> str:
     return f"{base} {tail}" if base else tail
 
 
+def _parse_class_prompts(text: str) -> dict[str, tuple[str, str]]:
+    """Parse the multiline `ad_class_prompts` field.
+
+    Each non-empty line must follow the format
+        ``classname: positive_prompt [| negative_prompt]``
+    Examples::
+
+        face: detailed face, sharp eyes
+        hand: five fingers, well-defined hand | blurry hands, extra fingers
+        eye: ultra detailed iris
+
+    Lines that don't contain ``:`` are ignored. Whitespace around values is
+    stripped. The pipe ``|`` separates positive from negative; negative is
+    optional and defaults to empty.
+
+    Returns
+    -------
+    dict[str, tuple[str, str]]
+        Class name -> (positive_prompt, negative_prompt). Empty strings mean
+        "fall back to the tab's default" — the runtime only overrides
+        non-empty entries.
+    """
+    result: dict[str, tuple[str, str]] = {}
+    if not text:
+        return result
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or ":" not in line:
+            continue
+        class_name, _, rest = line.partition(":")
+        class_name = class_name.strip()
+        if not class_name:
+            continue
+        if "|" in rest:
+            pos, _, neg = rest.partition("|")
+            result[class_name] = (pos.strip(), neg.strip())
+        else:
+            result[class_name] = (rest.strip(), "")
+    return result
+
+
 def _should_skip_for_hires_only(p, args) -> bool:
     """Return True when the per-tab `ad_apply_on_hires_only` toggle is on and
     the current `postprocess_image` call is NOT the post-hires-upscale call.
@@ -911,8 +952,25 @@ class AfterDetailerScript(scripts.Script):
         p2.cached_c = [None, None]
         p2.cached_uc = [None, None]
 
-        # Don't override user-defined dimensions.
-        if not args.ad_use_inpaint_width_height:
+        # Resolution priority:
+        #   1. ad_use_inpaint_width_height (fixed) overrides everything.
+        #   2. ad_use_resolution_scale: width/height = bbox_size * scale
+        #      (rounded down to a multiple of 8 for SD compatibility, floor 64).
+        #   3. Otherwise the existing get_optimal_crop_image_size heuristic
+        #      runs as before.
+        if args.ad_use_inpaint_width_height:
+            pass  # user-supplied fixed dimensions already on p2.
+        elif args.ad_use_resolution_scale:
+            x1, y1, x2, y2 = pred.bboxes[j]
+            scale = float(args.ad_resolution_scale)
+            scaled_w = max(64, int(round((x2 - x1) * scale)))
+            scaled_h = max(64, int(round((y2 - y1) * scale)))
+            # Round down to a multiple of 8 — Stable Diffusion's UNet requires
+            # both dimensions to be /8 (and ideally /64). Going /8 here keeps
+            # the canvas compatible with every model the user might have.
+            p2.width = (scaled_w // 8) * 8 or 64
+            p2.height = (scaled_h // 8) * 8 or 64
+        else:
             p2.width, p2.height = self.get_optimal_crop_image_size(
                 p2.width, p2.height, pred.bboxes[j]
             )
@@ -975,16 +1033,29 @@ class AfterDetailerScript(scripts.Script):
         ):
             classes = parse_csv(args.ad_model_classes)
             if len(classes) > 1:
+                # Class-specific prompts: each class can have its own
+                # positive/negative prompt that overrides the tab's default
+                # for that pass only. Format documented in
+                # _parse_class_prompts.
+                class_prompts = _parse_class_prompts(args.ad_class_prompts)
+
                 is_processed = False
                 for cls in classes:
                     if state.interrupted or state.skipped:
                         break
-                    sub_args = args.copy(
-                        update={
-                            "ad_model_classes": cls,
-                            "ad_classes_sequential": False,
-                        }
-                    )
+                    update: dict[str, Any] = {
+                        "ad_model_classes": cls,
+                        "ad_classes_sequential": False,
+                    }
+                    # Apply per-class prompt overrides if any. Empty strings
+                    # leave the tab's default intact for that field.
+                    if cls in class_prompts:
+                        pos, neg = class_prompts[cls]
+                        if pos:
+                            update["ad_prompt"] = pos
+                        if neg:
+                            update["ad_negative_prompt"] = neg
+                    sub_args = args.copy(update=update)
                     is_processed |= self._postprocess_image_inner(
                         p, pp, sub_args, n=n
                     )
@@ -1014,6 +1085,7 @@ class AfterDetailerScript(scripts.Script):
                         if args.ad_model_classes_exclude
                         else ""
                     ),
+                    use_bbox_mask=args.ad_use_bbox_mask,
                 )
 
         if pred.preview is None:

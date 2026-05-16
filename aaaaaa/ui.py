@@ -15,8 +15,10 @@ from adetailer.classes import get_model_class_names
 from adetailer.persistence import load_state, save_tab_state
 from adetailer.presets import (
     delete_preset,
+    export_presets_json,
     get_preset,
     get_preset_names,
+    import_presets_json,
     rename_preset,
     save_preset,
 )
@@ -75,6 +77,81 @@ class WebuiInfo:
 
 def gr_interactive(value: bool = True):
     return gr.update(interactive=value)
+
+
+def _format_preset_preview(name: str | None) -> str:
+    """Build a compact markdown summary of a preset's contents for the
+    live preview area below the preset dropdown.
+
+    Triggers on every preset_dropdown.change event so the user can flip
+    through saved presets and read a one-glance summary before deciding
+    whether to Load. Returns an empty string when nothing is selected.
+
+    `[SEP]` and `[PROMPT]` tokens are flagged in the rendered preview
+    because they will be expanded at generation time against the main
+    txt2img/img2img prompt — the user is warned to expect different
+    final prompts than what they see here verbatim.
+    """
+    from adetailer.presets import get_preset
+
+    name = (name or "").strip()
+    if not name or name == PRESET_NONE:
+        return ""
+    data = get_preset(name)
+    if not data:
+        return f"_(preset '{name}' not found on disk)_"
+
+    def _trunc(s: str, n: int = 140) -> str:
+        s = (s or "").strip()
+        return s if len(s) <= n else s[: n - 1].rstrip() + "…"
+
+    def _flag_tokens(s: str) -> str:
+        # Wrap [SEP]/[PROMPT] in backticks so they're visually distinct
+        # — note to the user that these are placeholders, not literals.
+        return (
+            (s or "")
+            .replace("[SEP]", "`[SEP]`")
+            .replace("[PROMPT]", "`[PROMPT]`")
+        )
+
+    pos = _flag_tokens(_trunc(data.get("ad_prompt", "")))
+    neg = _flag_tokens(_trunc(data.get("ad_negative_prompt", "")))
+    model = (data.get("ad_model") or "").strip() or "_(not set)_"
+    classes = (data.get("ad_model_classes") or "").strip()
+    excluded = (data.get("ad_model_classes_excluded") or "").strip()
+    seq = bool(data.get("ad_classes_sequential", False))
+
+    lines: list[str] = [f"**Preview — {name}**"]
+    lines.append(f"- **Detector:** {model}")
+    if classes:
+        lines.append(f"- **Classes (include):** {classes}")
+    if excluded:
+        lines.append(f"- **Classes (exclude):** {excluded}")
+    if seq:
+        lines.append("- **Sequential class detection:** on")
+    if pos:
+        lines.append(f"- **Prompt:** {pos}")
+    if neg:
+        lines.append(f"- **Negative:** {neg}")
+    # Per-class prompts (fork feature) — flag presence without dumping all.
+    class_prompts = (data.get("ad_class_prompts") or "").strip()
+    if class_prompts:
+        first_classes = [
+            line.split(":", 1)[0].strip()
+            for line in class_prompts.splitlines()
+            if ":" in line
+        ][:5]
+        lines.append(
+            "- **Class-specific prompts:** "
+            + (", ".join(first_classes) if first_classes else "_(set)_")
+        )
+    if "[SEP]" in (data.get("ad_prompt", "") + data.get("ad_negative_prompt", "")) or "[PROMPT]" in (
+        data.get("ad_prompt", "") + data.get("ad_negative_prompt", "")
+    ):
+        lines.append(
+            "- _`[SEP]` / `[PROMPT]` tokens will be expanded against the main prompt at generation time._"
+        )
+    return "\n".join(lines)
 
 
 def ordinal(n: int) -> str:
@@ -722,6 +799,129 @@ def one_ui_group(
         elem_classes=["ad-preset-status"],
     )
 
+    # Live preview of what the currently-highlighted preset contains — updates
+    # on dropdown change BEFORE the user clicks Load. Shows the prompts (with
+    # [SEP]/[PROMPT] tokens flagged so the user knows whether they will be
+    # expanded against the main prompt), the detector, and a class summary.
+    preset_preview = gr.Markdown(
+        value="",
+        elem_id=eid("ad_preset_preview"),
+        elem_classes=["ad-preset-preview"],
+    )
+    preset_dropdown.change(
+        fn=_format_preset_preview,
+        inputs=preset_dropdown,
+        outputs=preset_preview,
+        queue=False,
+    )
+
+    # Export / Import preset library — power-user controls, collapsed by
+    # default so they don't crowd the standard preset row. Round-trips the
+    # entire user_presets.json so configurations can be shared between
+    # installs or backed up.
+    with gr.Accordion(
+        "Preset library export / import",
+        open=False,
+        elem_id=eid("ad_preset_io_accordion"),
+    ):
+        preset_export_file = gr.File(
+            label="Exported preset library",
+            interactive=False,
+            visible=True,
+            elem_id=eid("ad_preset_export_file"),
+        )
+        with gr.Row(variant="compact"):
+            preset_export_btn = gr.Button(
+                value="\U0001F4E4 Export to JSON",
+                elem_id=eid("ad_preset_export_btn"),
+                scale=0,
+                min_width=160,
+            )
+        preset_import_file = gr.File(
+            label="Drop a preset JSON here to import",
+            file_types=[".json"],
+            type="filepath",
+            visible=True,
+            elem_id=eid("ad_preset_import_file"),
+        )
+        with gr.Row(variant="compact"):
+            preset_import_overwrite = gr.Checkbox(
+                label="Overwrite existing presets on name conflict",
+                value=False,
+                elem_id=eid("ad_preset_import_overwrite"),
+            )
+            preset_import_btn = gr.Button(
+                value="\U0001F4E5 Import",
+                elem_id=eid("ad_preset_import_btn"),
+                scale=0,
+                min_width=110,
+            )
+        preset_io_status = gr.Markdown(
+            value="",
+            elem_id=eid("ad_preset_io_status"),
+            elem_classes=["ad-preset-status"],
+        )
+
+    # Wire Export/Import locally — they refresh the CURRENT tab's preset
+    # dropdown so the user sees imported presets immediately. Other tabs'
+    # dropdowns will refresh on next UI reload (Gradio re-builds the
+    # adui() tree). Status messages summarise what happened in plain text.
+    def _do_export() -> tuple[str | None, str]:
+        import tempfile
+        from pathlib import Path
+
+        try:
+            payload = export_presets_json()
+        except Exception as e:  # noqa: BLE001
+            return None, f"_export failed: {e}_"
+        # Write to a stable named temp file so the download has a sensible
+        # filename. Gradio cleans up tempfiles between sessions.
+        tmp_dir = Path(tempfile.gettempdir())
+        out = tmp_dir / "adetailer-ultimate-presets.json"
+        try:
+            out.write_text(payload, encoding="utf-8")
+        except OSError as e:
+            return None, f"_export failed: {e}_"
+        return str(out), f"✅ Exported **{len(get_preset_names())}** preset(s). Use the download button on the file box above."
+
+    def _do_import(file_path: str | None, overwrite: bool) -> tuple[Any, str]:
+        if not file_path:
+            return gr.update(), "_no file selected — drop a preset JSON in the box first._"
+        try:
+            payload = open(file_path, "r", encoding="utf-8").read()
+        except OSError as e:
+            return gr.update(), f"_could not read file: {e}_"
+        added, replaced, skipped = import_presets_json(
+            payload, overwrite=overwrite
+        )
+        parts = []
+        if added:
+            parts.append(f"➕ **{added}** added")
+        if replaced:
+            parts.append(f"\U0001F501 **{replaced}** replaced")
+        if skipped:
+            parts.append(f"⏭ **{len(skipped)}** skipped (already present; toggle 'Overwrite' to replace)")
+        if not parts:
+            msg = "_no presets imported (file empty, invalid, or all names skipped)._"
+        else:
+            msg = " · ".join(parts)
+        # Refresh the local dropdown to surface the new entries.
+        names = [PRESET_NONE] + get_preset_names()
+        return gr.update(choices=names), msg
+
+    preset_export_btn.click(
+        fn=_do_export,
+        inputs=None,
+        outputs=[preset_export_file, preset_io_status],
+        queue=False,
+    )
+    preset_import_btn.click(
+        fn=_do_import,
+        inputs=[preset_import_file, preset_import_overwrite],
+        outputs=[preset_dropdown, preset_io_status],
+        queue=False,
+    )
+
     # Saved model name may refer to a model the user deleted between sessions.
     # Fall back to the default first choice if it's not in current choices.
     _saved_model = sv("ad_model", model_choices[0])
@@ -858,6 +1058,26 @@ def one_ui_group(
                 lines=1,
                 placeholder="Always appended to the negative prompt above",
                 elem_id=eid("ad_negative_prompt_append"),
+            )
+
+        # Class-specific prompts: pairs with Sequential class detection so
+        # each class in the sequential queue can override the tab's prompt /
+        # negative prompt with its own. Lines that don't match the syntax
+        # are silently ignored. Empty entries fall back to the tab defaults.
+        with gr.Row(elem_id=eid("ad_toprow_class_prompts"), elem_classes=["ad-prompt-row"]):
+            w.ad_class_prompts = gr.Textbox(
+                value=sv("ad_class_prompts", ""),
+                label="ad_class_prompts" + suffix(n),
+                show_label=False,
+                lines=4,
+                placeholder=(
+                    "Per-class prompt overrides for Sequential class detection.\n"
+                    "Format (one per line): classname: positive_prompt | negative_prompt\n"
+                    "Example:\n"
+                    "  face: detailed face, sharp eyes\n"
+                    "  hand: five fingers | blurry hands, extra fingers"
+                ),
+                elem_id=eid("ad_class_prompts"),
             )
 
         with gr.Row(variant="compact"):
@@ -1163,6 +1383,19 @@ def mask_preprocessing(
                 info="None: do nothing, Merge: merge masks, Merge and Invert: merge all masks and invert",
             )
 
+        with gr.Row(variant="compact"):
+            # Forces the bbox to be used as the mask even when the detection
+            # model provides a per-pixel segmentation mask. Useful for seg
+            # models that produce overly-tight masks where the inpaint needs
+            # more padding around the subject for natural-looking blending.
+            w.ad_use_bbox_mask = gr.Checkbox(
+                label="Use bbox as mask (segmentation models)" + suffix(n),
+                info="Force the rectangular bounding box as the inpaint mask, even when the detector produced a precise per-pixel segmentation mask. No effect on bbox-only detectors.",
+                value=sv("ad_use_bbox_mask", False),
+                visible=True,
+                elem_id=eid("ad_use_bbox_mask"),
+            )
+
 
 def inpainting(  # noqa: PLR0915
     w: Widgets,
@@ -1253,6 +1486,35 @@ def inpainting(  # noqa: PLR0915
                     lambda value: (gr_interactive(value), gr_interactive(value)),
                     inputs=w.ad_use_inpaint_width_height,
                     outputs=[w.ad_inpaint_width, w.ad_inpaint_height],
+                    queue=False,
+                )
+
+                # Scale-based resolution: alternative to absolute width/height,
+                # computes the inpaint canvas as `bbox_size * multiplier` so
+                # the canvas always exceeds the source bbox. Mutually exclusive
+                # with `Use separate width/height` (the fixed-dim toggle wins).
+                w.ad_use_resolution_scale = gr.Checkbox(
+                    label="Scale inpaint to bbox" + suffix(n),
+                    info="Use bbox_size × scale as the inpaint canvas. Overridden by 'Use separate width/height' when both are on.",
+                    value=sv("ad_use_resolution_scale", False),
+                    visible=True,
+                    elem_id=eid("ad_use_resolution_scale"),
+                )
+                w.ad_resolution_scale = gr.Slider(
+                    label="Inpaint resolution scale" + suffix(n),
+                    minimum=0.5,
+                    maximum=8.0,
+                    step=0.05,
+                    value=sv("ad_resolution_scale", 1.5),
+                    visible=True,
+                    elem_id=eid("ad_resolution_scale"),
+                )
+                # Disable the slider unless the toggle is on, so the UI
+                # makes the binding obvious.
+                w.ad_use_resolution_scale.change(
+                    lambda value: gr_interactive(value),
+                    inputs=w.ad_use_resolution_scale,
+                    outputs=w.ad_resolution_scale,
                     queue=False,
                 )
 
