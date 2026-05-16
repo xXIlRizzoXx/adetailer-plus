@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-16 (rename → ADetailer Ultimate)
+
+- Project renamed to **ADetailer Ultimate**: GitHub repo `xXIlRizzoXx/adetailer-plus` → `xXIlRizzoXx/adetailer_ultimate`. README title and install URL updated. `style.css` header comment updated. All previous URLs (`xXIlRizzoXx/adetailer` from the original soft-fork, then `xXIlRizzoXx/adetailer-plus` from the same-day rename) continue to work via GitHub's automatic redirect chain.
+
 ## 2026-05-16 (rename → ADetailer Plus + roadmap expansion)
 
 - Project renamed back to **ADetailer Plus**: GitHub repo `xXIlRizzoXx/adetailer` → `xXIlRizzoXx/adetailer-plus`. README title and install URL updated. `style.css` header comment updated. Old `xXIlRizzoXx/adetailer` URLs continue to work via GitHub's automatic redirect.

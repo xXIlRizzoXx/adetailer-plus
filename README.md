@@ -1,4 +1,4 @@
-# ADetailer Plus
+# ADetailer Ultimate
 
 > **⚠️ This is an unofficial fork.** This project is **not affiliated with or endorsed by Bing-su**, the original ADetailer author. For the official ADetailer go to [Bing-su/adetailer](https://github.com/Bing-su/adetailer).
 >
@@ -90,7 +90,7 @@ Or
 
 1. Open "Extensions" tab.
 2. Open "Install from URL" tab in the tab.
-3. Enter `https://github.com/xXIlRizzoXx/adetailer-plus.git` to "URL for extension's git repository". (Replace with `https://github.com/Bing-su/adetailer.git` if you want the upstream version instead.)
+3. Enter `https://github.com/xXIlRizzoXx/adetailer_ultimate.git` to "URL for extension's git repository". (Replace with `https://github.com/Bing-su/adetailer.git` if you want the upstream version instead.)
 4. Press "Install" button.
 5. Wait 5 seconds, and you will see the message "Installed into stable-diffusion-webui\extensions\adetailer. Use Installed tab to restart".
 6. Go to "Installed" tab, click "Check for updates", and then click "Apply and restart UI". (The next time you can also use this method to update extensions.)
