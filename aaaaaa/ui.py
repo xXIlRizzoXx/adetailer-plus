@@ -378,22 +378,31 @@ def _wire_presets(
     clipboard_state: gr.State,
     num_models: int,
 ) -> None:
-    """Wire each tab's preset Load/Save/Delete/Reset buttons.
+    """Wire each tab's preset Load/Save/Delete/Rename/Reset buttons.
 
     Layout reminder — each entry of `all_presets` is the 8-tuple returned
     from one_ui_group: (dropdown, load_btn, rename_btn, delete_btn,
     name_box, save_btn, reset_btn, status_md).
 
-    Saving or deleting from any tab refreshes ALL tabs' dropdown choices.
-    Reset is per-tab and ONLY clears the preset library + tab clipboard
-    sections: dropdown back to (none), name textbox emptied, status
-    cleared, and the global clipboard state wiped (every paste button on
-    every tab returns to its disabled default). Reset does NOT touch the
-    actual detection / inpaint widgets — those are reachable via Load
-    of a saved preset or by changing values manually.
+    Saving / deleting / renaming from any tab refreshes ALL tabs'
+    dropdown choices. Load applies a saved preset to THIS tab's widgets
+    (including the UI-only classes dropdown). Reset resets THIS tab's
+    widgets to their pydantic defaults AND clears the preset+clipboard
+    state for a fresh start.
     """
+    from adetailer.args import ADetailerArgs
+
     attrs = list(ALL_ARGS.attrs)
     all_dropdowns = [p[0] for p in all_presets]
+
+    # Pydantic field defaults — used by the Reset handler to roll widgets
+    # back to a pristine state. Falls back to None for any attr that
+    # somehow isn't on the schema (defensive — shouldn't happen).
+    _defaults = {
+        a: ADetailerArgs.__fields__[a].default
+        for a in attrs
+        if a in ADetailerArgs.__fields__
+    }
 
     def _refresh_dropdowns_update(selected: str | None = None) -> list:
         # PRESET_NONE is always the first entry so the user has a no-op
@@ -424,29 +433,41 @@ def _wire_presets(
         widget_refs = [getattr(all_widgets[idx], a) for a in attrs]
 
         # LOAD: pull the selected preset from disk, apply its values to this
-        # tab's widgets. No-op if (none) or the preset name is missing.
+        # tab's widgets — including the UI-only classes dropdown (parsed
+        # from the preset's ad_model_classes CSV). No-op if (none) or the
+        # preset name is missing.
+        dst_classes_dd = all_widgets[idx].ad_model_classes_dropdown
+
         def _make_load(idx: int, n_attrs: int):
             def _load(selected: str | None):
                 if _is_none(selected):
-                    return ["", *(gr.update() for _ in range(n_attrs))]
+                    return ["", *(gr.update() for _ in range(n_attrs)), gr.update()]
                 preset = get_preset(selected)
                 if not preset:
                     return [
                         f"⚠️ Preset '{selected}' not found.",
                         *(gr.update() for _ in range(n_attrs)),
+                        gr.update(),
                     ]
                 widget_updates = [
                     gr.update(value=preset[a]) if a in preset else gr.update()
                     for a in attrs
                 ]
-                return [f"✅ Loaded '{selected}'.", *widget_updates]
+                # Parse the saved CSV into the multi-select dropdown.
+                csv = preset.get("ad_model_classes", "") or ""
+                selected_classes = [c.strip() for c in csv.split(",") if c.strip()]
+                return [
+                    f"✅ Loaded '{selected}'.",
+                    *widget_updates,
+                    gr.update(value=selected_classes),
+                ]
 
             return _load
 
         load_btn.click(
             fn=_make_load(idx, len(attrs)),
             inputs=dropdown,
-            outputs=[status_md, *widget_refs],
+            outputs=[status_md, *widget_refs, dst_classes_dd],
             queue=False,
         )
 
@@ -541,25 +562,35 @@ def _wire_presets(
             queue=False,
         )
 
-        # RESET: only clears the preset library + tab clipboard sections.
-        # - Preset dropdown of THIS tab back to (none)
-        # - Preset name textbox emptied
-        # - Status line cleared
+        # RESET: roll THIS tab back to a pristine state.
+        # - All ALL_ARGS widgets (detector, classes, prompts, denoise,
+        #   padding, sampler, ControlNet, ...) -> pydantic defaults
+        # - UI-only classes multi-select dropdown -> empty
+        # - Preset library on this tab: dropdown back to (none), name box
+        #   emptied, status cleared
         # - Global clipboard wiped: state -> (-1, []), every paste button
-        #   on every tab returns to "📥 Paste settings" disabled.
-        # Does NOT touch the detection / inpaint widgets on any tab.
+        #   on every tab returns to "📥 Paste settings" disabled
+        # Other tabs' widgets are NOT touched.
         def _make_reset():
             def _reset():
+                widget_updates = [
+                    gr.update(value=_defaults.get(a))
+                    if a in _defaults
+                    else gr.update()
+                    for a in attrs
+                ]
                 paste_updates = [
                     gr.update(value="\U0001F4E5 Paste settings", interactive=False)
                     for _ in range(num_models)
                 ]
                 return [
-                    "",                          # status_md
-                    gr.update(value=PRESET_NONE),  # this tab's dropdown
-                    "",                          # name_box
-                    (-1, []),                    # clipboard_state (global)
-                    *paste_updates,              # every paste button (global)
+                    "\U0001F195 Tab reset to defaults.",  # status_md
+                    gr.update(value=PRESET_NONE),         # this tab's preset dropdown
+                    "",                                    # name_box
+                    (-1, []),                              # clipboard_state (global)
+                    *paste_updates,                        # every paste button (global)
+                    *widget_updates,                       # every ALL_ARGS widget
+                    gr.update(value=[]),                   # classes multiselect dropdown
                 ]
 
             return _reset
@@ -573,6 +604,8 @@ def _wire_presets(
                 name_box,
                 clipboard_state,
                 *all_paste_btns,
+                *widget_refs,
+                dst_classes_dd,
             ],
             queue=False,
         )
