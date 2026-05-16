@@ -1,9 +1,17 @@
 # Changelog
 
+## 2026-05-16 (rename → ADetailer Plus + roadmap expansion)
+
+- Project renamed back to **ADetailer Plus**: GitHub repo `xXIlRizzoXx/adetailer` → `xXIlRizzoXx/adetailer-plus`. README title and install URL updated. `style.css` header comment updated. Old `xXIlRizzoXx/adetailer` URLs continue to work via GitHub's automatic redirect.
+- README **Roadmap (not yet implemented)** section expanded from 4 to 10 items after analysing the two most-starred forks of upstream `Bing-su/adetailer`:
+  - From [Anzhc/aadetailer-reforge](https://github.com/Anzhc/aadetailer-reforge) (22★): LoRA trigger extraction (`<lora:name (trigger):1>` parsing), "Apply only on hires.fix" toggle, scale-based resolution, WDv3 autotagging.
+  - From [newtextdoc1111/adetailer](https://github.com/newtextdoc1111/adetailer) (14★): class-specific prompts (per-class prompt in sequential mode), bounding-box mask option for segmentation models.
+- The new Roadmap table includes an **Inspiration** column crediting the upstream fork where each idea originated.
+
 ## 2026-05-15 → 2026-05-16 (plus: workflow ergonomics — extended)
 
 - v26.2.0+plus.2 (version locked here per repo-owner request; further fork features ship under the same string until an explicit bump)
-- Project renamed `adetailer-classfilter` → `adetailer-plus` → `adetailer` (final). The GitHub repo URL is now `https://github.com/xXIlRizzoXx/adetailer`; old URLs redirect automatically.
+- Project renaming history (pre-2026-05-16): `adetailer-classfilter` (initial) → `adetailer-plus` (scope expansion) → `adetailer` (briefly simplified) → `adetailer-plus` (current). GitHub redirects keep all old URLs working.
 
 ### Detection
 

@@ -1,4 +1,4 @@
-# ADetailer (xXIlRizzoXx fork)
+# ADetailer Plus
 
 > **⚠️ This is an unofficial fork.** This project is **not affiliated with or endorsed by Bing-su**, the original ADetailer author. For the official ADetailer go to [Bing-su/adetailer](https://github.com/Bing-su/adetailer).
 >
@@ -59,14 +59,20 @@ Every row below is an addition this fork makes on top of upstream [Bing-su/adeta
 
 ### Roadmap (not yet implemented)
 
-Candidate items that are not in `main` yet. None is committed to a release date — listed here to make the project's direction transparent.
+Candidate items that are not in `main` yet. None is committed to a release date — listed here to make the project's direction transparent. Items are ordered roughly by **value-to-effort ratio** (cheap & impactful first). The **Inspiration** column credits the fork or workflow where the idea originated.
 
-| Status | Feature | What it would do |
-| :---: | --- | --- |
-| 🔴 | ControlNet crop-aware toggle | Pass the cropped inpaint region through ControlNet's preprocessor instead of the full image, so ControlNet sees what the inpaint actually targets (IOSakaki-style behaviour). |
-| 🔴 | `[SEP]` / `[PROMPT]` preview in preset library | When a saved preset uses `[SEP]` / `[PROMPT]` tokens in its prompt, preview the expanded result in the Load dropdown so the user knows what they're about to apply. |
-| 🔴 | Export / Import preset JSON | A pair of buttons to dump the named preset library to a portable JSON file and re-import it on another install, so configurations can be shared between machines or users. |
-| 🔴 | Upstream PRs to `Bing-su/adetailer` | Open the two prepared branches (`fix/forge-neo-cmdopts-compat`, `feat/per-class-filtering`) as PRs against upstream. Both are ready and standing by — pending the repo owner's go-ahead. |
+| Status | Feature | What it would do | Inspiration |
+| :---: | --- | --- | --- |
+| 🔴 | LoRA trigger extraction | Extend the existing `Include LoRAs from main prompt` feature to parse the convention `<lora:name (trigger phrase):weight>` — the substring inside parentheses gets appended to the prompt as a trigger word. Backwards-compatible (LoRAs without parentheses behave like today). Sub-toggle to enable only when the trigger is actually used by other detected loras (multi-trigger LoRA awareness). | [Anzhc/aadetailer-reforge](https://github.com/Anzhc/aadetailer-reforge) |
+| 🔴 | "Apply only on hires.fix" toggle | Per-tab checkbox that skips the ADetailer pass during the lowres txt2img generation and runs it only on the hires upscale output. Big time saver for `txt2img → hires fix` workflows where the lowres detail will be overwritten anyway. | [Anzhc/aadetailer-reforge](https://github.com/Anzhc/aadetailer-reforge) |
+| 🔴 | Bounding-box mask (seg models) | Toggle that, for segmentation models, uses the bbox as the mask instead of the precise per-pixel segmentation mask. Useful when the segmentation is too tight and the inpaint needs more context around the subject. | [newtextdoc1111/adetailer](https://github.com/newtextdoc1111/adetailer) |
+| 🔴 | Class-specific prompts | When sequential class detection is on, each class can have its own dedicated prompt/negative-prompt. Today the sequential mode reuses the tab's prompt for every pass. With this, `face` could use a face-tuned prompt while `hand` uses a hand-tuned one — much higher quality per-class output. Builds directly on top of the existing class-pass-order machinery. | [newtextdoc1111/adetailer](https://github.com/newtextdoc1111/adetailer) |
+| 🔴 | Scale-based resolution | Instead of an absolute inpaint resolution, set a multiplier (e.g. `1.5x`) relative to the cropped bounding-box area. The inpaint canvas is `bbox_size × multiplier`, so it always exceeds the source resolution and produces sharper detail. | [Anzhc/aadetailer-reforge](https://github.com/Anzhc/aadetailer-reforge) |
+| 🔴 | ControlNet crop-aware toggle | Pass the cropped inpaint region through ControlNet's preprocessor instead of the full image, so ControlNet sees what the inpaint actually targets (instead of the whole scene). | IOSakaki workflow community |
+| 🔴 | WDv3 autotagging | Run a WD14/WDv3-large image tagger over the cropped region *before* the inpaint and prepend the resulting tags to the inpaint prompt. Net effect: the inpaint never needs a hand-crafted prompt to know what's in the region. Heaviest item — extra ~200 MB model download, cache management, dedicated Settings panel. | [Anzhc/aadetailer-reforge](https://github.com/Anzhc/aadetailer-reforge) |
+| 🔴 | `[SEP]` / `[PROMPT]` preview in preset library | When a saved preset uses `[SEP]` / `[PROMPT]` tokens in its prompt, preview the expanded result in the Load dropdown so the user knows what they're about to apply. | (original idea) |
+| 🔴 | Export / Import preset JSON | A pair of buttons to dump the named preset library to a portable JSON file and re-import it on another install, so configurations can be shared between machines or users. | (original idea) |
+| 🔴 | Upstream PRs to `Bing-su/adetailer` | Open the two prepared branches (`fix/forge-neo-cmdopts-compat`, `feat/per-class-filtering`) as PRs against upstream. Both are ready and standing by — pending the repo owner's go-ahead. | (process) |
 
 ---
 
@@ -84,7 +90,7 @@ Or
 
 1. Open "Extensions" tab.
 2. Open "Install from URL" tab in the tab.
-3. Enter `https://github.com/xXIlRizzoXx/adetailer.git` to "URL for extension's git repository". (Replace with `https://github.com/Bing-su/adetailer.git` if you want the upstream version instead.)
+3. Enter `https://github.com/xXIlRizzoXx/adetailer-plus.git` to "URL for extension's git repository". (Replace with `https://github.com/Bing-su/adetailer.git` if you want the upstream version instead.)
 4. Press "Install" button.
 5. Wait 5 seconds, and you will see the message "Installed into stable-diffusion-webui\extensions\adetailer. Use Installed tab to restart".
 6. Go to "Installed" tab, click "Check for updates", and then click "Apply and restart UI". (The next time you can also use this method to update extensions.)
