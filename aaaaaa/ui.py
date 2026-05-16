@@ -740,7 +740,7 @@ def one_ui_group(
 
         with gr.Row():
             w.ad_model_classes = gr.Textbox(
-                label="ADetailer detector classes (YOLO-World)" + suffix(n),
+                label="ADetailer detector CLASSES (YOLO-World)" + suffix(n),
                 value=sv("ad_model_classes", ""),
                 visible=False,
                 elem_id=eid("ad_model_classes"),
@@ -748,7 +748,7 @@ def one_ui_group(
             # UI-only dropdown: not in ALL_ARGS. It syncs into ad_model_classes
             # (CSV) for the include path or ad_model_classes_excluded for exclude.
             w.ad_model_classes_dropdown = gr.Dropdown(
-                label="ADetailer detector classes" + suffix(n),
+                label="ADetailer detector CLASSES" + suffix(n),
                 choices=[],
                 value=[],
                 multiselect=True,
