@@ -110,18 +110,23 @@ def _sv(saved: dict[str, Any], attr: str, default):
     return saved.get(attr, default) if attr in saved else default
 
 
-def on_ad_model_update(model: str, model_mapping: dict[str, str] | None = None):
+def on_ad_model_update(
+    model: str,
+    current_selection: list | None = None,
+    model_mapping: dict[str, str] | None = None,
+):
     """Return updates for (textbox, dropdown, exclude-checkbox, excluded-textbox).
 
-    The dropdown and exclude checkbox stay **always visible** so the UI layout
-    is predictable across model changes. They are populated with the model's
-    class names when applicable, and shown empty (effectively non-interactive)
-    for None / MediaPipe / YOLO-World, where class filtering is not the
-    relevant mechanism.
+    The dropdown and exclude checkbox stay always visible so the layout is
+    predictable across model changes. They're populated with the model's
+    class names when applicable, empty otherwise.
 
-    - YOLO-World models: ALSO show the free-text textbox (open-vocabulary).
-    - Multiclass YOLO models: dropdown is populated from model.names.
-    - MediaPipe / None: dropdown is shown but empty.
+    - YOLO-World: ALSO shows the free-text textbox (open-vocabulary).
+    - Other multiclass YOLO: dropdown populated from model.names. Any
+      current selections that are still valid in the new model are
+      preserved — this is what lets Copy/Paste between tabs keep the
+      class-filter state when the detector matches.
+    - MediaPipe / None: dropdown shown but empty.
     """
     if not model or model == "None" or model.lower().startswith("mediapipe"):
         return (
@@ -146,9 +151,11 @@ def on_ad_model_update(model: str, model_mapping: dict[str, str] | None = None):
     mapping = model_mapping or {}
     path = mapping.get(model, "")
     names = get_model_class_names(path) if path else []
+    # Preserve selections that still exist in the new model's class list.
+    preserved = [s for s in (current_selection or []) if s in names]
     return (
         gr.update(visible=False, value=""),
-        gr.update(visible=True, choices=names, value=[]),
+        gr.update(visible=True, choices=names, value=preserved),
         gr.update(visible=True, value=False),
         gr.update(value=""),
     )
@@ -326,8 +333,17 @@ def _wire_copy_paste(
 
     # Wire each Paste button: read clipboard_state and apply to this tab's
     # widgets. No-op if clipboard is empty or paste is on the source tab.
+    # The UI-only ad_model_classes_dropdown isn't part of ALL_ARGS, so we
+    # explicitly compute its new value from the pasted ad_model_classes CSV
+    # and append it to the outputs.
+    try:
+        _classes_attr_idx = attrs.index("ad_model_classes")
+    except ValueError:
+        _classes_attr_idx = -1
+
     for dst_idx in range(num_models):
         dst_widget_refs = [getattr(all_widgets[dst_idx], a) for a in attrs]
+        dst_dropdown = all_widgets[dst_idx].ad_model_classes_dropdown
 
         def _make_paste_fn(idx: int, n_attrs: int):
             def _paste_fn(clipboard):
@@ -337,15 +353,20 @@ def _wire_copy_paste(
                     or source_idx == idx
                     or len(values) != n_attrs
                 ):
-                    return [gr.update() for _ in range(n_attrs)]
-                return values
+                    return [gr.update() for _ in range(n_attrs)] + [gr.update()]
+                # Parse the pasted CSV into a multi-select value list for
+                # the class dropdown. on_ad_model_update will filter any
+                # entries that aren't valid for the destination's detector.
+                csv = values[_classes_attr_idx] if _classes_attr_idx >= 0 else ""
+                selected = [c.strip() for c in (csv or "").split(",") if c.strip()]
+                return list(values) + [gr.update(value=selected)]
 
             return _paste_fn
 
         all_paste_btns[dst_idx].click(
             fn=_make_paste_fn(dst_idx, len(attrs)),
             inputs=clipboard_state,
-            outputs=dst_widget_refs,
+            outputs=[*dst_widget_refs, dst_dropdown],
             queue=False,
         )
 
@@ -722,7 +743,7 @@ def one_ui_group(
         )
         w.ad_model.change(
             _on_ad_model_update,
-            inputs=w.ad_model,
+            inputs=[w.ad_model, w.ad_model_classes_dropdown],
             outputs=[
                 w.ad_model_classes,
                 w.ad_model_classes_dropdown,
