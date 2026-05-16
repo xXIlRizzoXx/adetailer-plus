@@ -629,10 +629,41 @@ def one_ui_group(
         else ["None", *webui_info.ad_model_list]
     )
 
-    # Preset row: load/save/delete named tab configurations. Shared storage
-    # across tabs — saving from one tab makes the preset visible in all
-    # tabs' dropdowns. The wiring (which needs refs to every tab's dropdown
-    # for cross-tab refresh) is done in _wire_presets() called from adui().
+    # 'Tab clipboard' accordion FIRST — right under the tab selector. Open
+    # by default so the user immediately sees the per-tab toggles (Enable,
+    # Copy/Paste) without clicking. Per-tab management lives at the very
+    # top; the data sections (preset library, detector, prompts, ...)
+    # follow underneath.
+    with gr.Accordion(
+        "Tab clipboard",
+        open=True,
+        elem_id=eid("ad_tab_clipboard_accordion"),
+    ):
+        with gr.Row(variant="compact"):
+            w.ad_tab_enable = gr.Checkbox(
+                label=f"Enable this tab ({ordinal(n + 1)})",
+                value=sv("ad_tab_enable", True),
+                visible=True,
+                elem_id=eid("ad_tab_enable"),
+            )
+        with gr.Row(variant="compact"):
+            copy_btn = gr.Button(
+                value="\U0001F4CB Copy settings",
+                elem_id=eid("ad_copy_settings"),
+                scale=0,
+                min_width=160,
+            )
+            paste_btn = gr.Button(
+                value="\U0001F4E5 Paste settings",
+                elem_id=eid("ad_paste_settings"),
+                interactive=False,
+                scale=0,
+                min_width=160,
+            )
+
+    # Preset library — load/save/delete/rename named tab configurations.
+    # Shared storage across tabs; cross-tab dropdown refresh on save/delete
+    # is wired in _wire_presets().
     initial_presets = [PRESET_NONE] + get_preset_names()
     gr.Markdown("Preset library", elem_classes=["ad-section-label"])
     with gr.Row(variant="compact"):
@@ -688,36 +719,6 @@ def one_ui_group(
         elem_id=eid("ad_preset_status"),
         elem_classes=["ad-preset-status"],
     )
-
-    # 'Tab clipboard' accordion grouping the tab-level toggles + Copy/Paste
-    # inter-tab clipboard. Closed by default; user opens it when they need
-    # to enable/disable the tab or move settings between tabs.
-    with gr.Accordion(
-        "Tab clipboard",
-        open=False,
-        elem_id=eid("ad_tab_clipboard_accordion"),
-    ):
-        with gr.Row(variant="compact"):
-            w.ad_tab_enable = gr.Checkbox(
-                label=f"Enable this tab ({ordinal(n + 1)})",
-                value=sv("ad_tab_enable", True),
-                visible=True,
-                elem_id=eid("ad_tab_enable"),
-            )
-        with gr.Row(variant="compact"):
-            copy_btn = gr.Button(
-                value="\U0001F4CB Copy settings",
-                elem_id=eid("ad_copy_settings"),
-                scale=0,
-                min_width=160,
-            )
-            paste_btn = gr.Button(
-                value="\U0001F4E5 Paste settings",
-                elem_id=eid("ad_paste_settings"),
-                interactive=False,
-                scale=0,
-                min_width=160,
-            )
 
     # Saved model name may refer to a model the user deleted between sessions.
     # Fall back to the default first choice if it's not in current choices.
