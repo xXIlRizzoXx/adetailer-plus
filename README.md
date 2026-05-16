@@ -28,7 +28,7 @@ Every row below is an addition this fork makes on top of upstream [Bing-su/adeta
 | 🟢 | Multiclass detector classes | Either everything the model produces is inpainted (no per-class control), or for YOLO-World a text field accepts open-vocabulary class names. There is no UI to choose among the trained classes of a multiclass YOLO detector. | Auto-populated multi-select dropdown reading class names from `model.names` (or a sidecar `.json`). Choose any subset; the include path uses Ultralytics' native `model(classes=[ids])` so non-matching detections are dropped at inference time. |
 | 🟢 | Exclude / NOT mode | Not available. | "Exclude selected (NOT)" checkbox inverts the filter — every class the model produces *except* the selected ones gets inpainted. Implemented as a post-filter on `pred.boxes.cls`. |
 | 🟡 | Sequential class detection | All selected classes run in a single inference batch; the inpaint passes all use the same prompt and settings. | Optional "Process classes sequentially" checkbox: runs one detect+inpaint pass per selected class in dropdown order, each pass operating on the output of the previous. Cleaner per-region inpainting at the cost of longer runtime. Top-of-function recursion in `_postprocess_image_inner` with single-class `args.copy(update=...)`. |
-| 🟡 | Class reorder | N/A (no class-selection UI). | Drag-and-drop the selected class tokens to dictate the order of sequential passes. HTML5 drag-and-drop + click-based re-sync into Gradio's reactive store. Experimental — Chromium is reliable, Firefox occasionally needs a retry. |
+| 🟢 | Class pass order (activation order) | N/A (no class-selection UI). | The order in which you click classes in the dropdown is the order they're processed when **Sequential class detection** is on. Gradio's multi-select natively appends each selection to the end of the value list, and the sequential pipeline reads that order verbatim. To re-order, click the × on a token to deselect it, then click its name in the dropdown again — it goes to the end. |
 | 🟢 | Detection preview | Not available — you run a full generation to see what the detector matches. | "Run detection preview" button in a per-tab accordion. Runs the configured detector against the most recent generation (or the img2img input) and returns the image annotated with bounding boxes / mask, without inpainting.<br>**Note:** select a model in the **ADetailer detector** dropdown of the same tab *first* — the preview uses the tab's currently-selected detector and the button is a no-op when no detector is chosen. |
 | 🟡 | Civitai_helper JSON sidecars | A `.json` next to a `.pt` is assumed to contain class names; civitai_helper-generated metadata files break the loader. | `_names_from_json` returns `[]` for shapes that don't look like class containers (lists / `{names: [...]}` / `{0: "...", 1: "..."}`); the loader falls back to `model.names` so unrelated `.json` sidecars are silently ignored. |
 
@@ -147,7 +147,7 @@ Class names are cached per-session, so changing this file requires a webui resta
 
 ## Sequential Class Detection
 
-Tick **"Process classes sequentially"** (under the class dropdown) to make ADetailer run **one detection + inpaint pass per selected class**, in the order they appear in the dropdown.
+Tick **"Process classes sequentially"** (under the class dropdown) to make ADetailer run **one detection + inpaint pass per selected class**, in the order they appear in the dropdown — which is the order in which you clicked them (see [Class Pass Order](#class-pass-order)).
 
 Without this flag, picking `face, hand, eye` means ADetailer runs a single inference with `classes=[face, hand, eye]`, gets all detections in one batch, then inpaints them all using the same prompt and settings.
 
@@ -231,11 +231,15 @@ The use case is iteration on prompt / sampler / seed without recomputing the ADe
 
 This pairs naturally with sequential class detection — you can inspect what each class pass produced individually.
 
-## Drag-and-Drop Class Reorder
+## Class Pass Order
 
-When you have multiple classes selected in the class dropdown, the tokens shown in the input box are draggable (cursor turns into a `grab` hand). Drag a token to a new position to reorder the selection. The new order is what **Sequential class detection** uses for its pass order.
+The class dropdown's `value` list is the source of truth for **Sequential class detection**'s pass order. Gradio's multi-select natively keeps the values in **selection order** — the first class you click is at the front, each subsequent click appends to the end. So:
 
-This is experimental — the drag uses HTML5 drag-and-drop with a click-based re-sync to push the new order through Gradio's reactive store. It's reliable in Chromium-based browsers; in Firefox it occasionally needs a second drag attempt.
+- **First-time selection** — just click the classes in the order you want them processed. Done.
+- **Re-ordering an existing selection** — click the × on a token to remove it from the list, then click its name in the dropdown again. It re-appends at the end. Repeat for any other tokens you want to move.
+- **Reset the order to "selection order"** — click × on everything, then click each name fresh in the order you want.
+
+There is no drag-and-drop. An earlier version of the fork shipped an HTML5 drag-and-drop handler, but it relied on a brittle deselect-then-reselect sync against Gradio's reactive store and caused tokens to flicker out during the operation. The native activation-order behaviour is simpler, fully reliable, and produces the same end result.
 
 ## ControlNet Inpainting
 

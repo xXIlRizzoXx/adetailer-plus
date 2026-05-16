@@ -8,7 +8,7 @@
 ### Detection
 
 - **Sequential class detection** — new "Process classes sequentially" checkbox. When multiple classes are selected in the dropdown, runs one detect+inpaint pass per class in dropdown order, each operating on the output of the previous. Better separation of regions and cleaner per-class inpainting at the cost of longer runtime. Ignored for MediaPipe, NOT mode, and single-class selections. Implemented via top-of-function recursion in `_postprocess_image_inner` with single-class `args.copy(update=...)`.
-- **Drag-and-drop class reorder** — the tokens of the multi-select class dropdown are draggable so the user can dictate the order of sequential passes. Implemented in `javascript/class-reorder.js` with HTML5 drag-and-drop + a click-based re-sync to push the new order through Gradio's reactive store.
+- **Class pass order = activation order** — the order in which the user clicks classes in the multi-select dropdown is the order they're processed under Sequential class detection. Re-ordering = click × on a token then re-click its name (it goes to the end). Native Gradio behaviour; no JS. An earlier iteration shipped a `javascript/class-reorder.js` HTML5 drag-and-drop handler with a deselect-then-reselect sync; it caused tokens to flicker out of the DOM during the operation, and the simpler native-order approach makes it unnecessary. The JS file is removed.
 - **Detection preview** — accordion at the bottom of each tab with a "Run detection preview" button. Runs the configured detector against the most recent generation (or img2img input) and renders bounding boxes / mask without inpainting. Useful for tuning confidence + mask preprocessing without burning a full generation.
 
 ### Workflow & prompting
