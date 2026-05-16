@@ -29,7 +29,7 @@ Every row below is an addition this fork makes on top of upstream [Bing-su/adeta
 | 🟢 | Exclude / NOT mode | Not available. | "Exclude selected (NOT)" checkbox inverts the filter — every class the model produces *except* the selected ones gets inpainted. Implemented as a post-filter on `pred.boxes.cls`. |
 | 🟡 | Sequential class detection | All selected classes run in a single inference batch; the inpaint passes all use the same prompt and settings. | Optional "Process classes sequentially" checkbox: runs one detect+inpaint pass per selected class in dropdown order, each pass operating on the output of the previous. Cleaner per-region inpainting at the cost of longer runtime. Top-of-function recursion in `_postprocess_image_inner` with single-class `args.copy(update=...)`. |
 | 🟡 | Class reorder | N/A (no class-selection UI). | Drag-and-drop the selected class tokens to dictate the order of sequential passes. HTML5 drag-and-drop + click-based re-sync into Gradio's reactive store. Experimental — Chromium is reliable, Firefox occasionally needs a retry. |
-| 🟡 | Detection preview | Not available — you run a full generation to see what the detector matches. | "Run detection preview" button in a per-tab accordion. Runs the configured detector against the most recent generation (or the img2img input) and returns the image annotated with bounding boxes / mask, without inpainting. |
+| 🟢 | Detection preview | Not available — you run a full generation to see what the detector matches. | "Run detection preview" button in a per-tab accordion. Runs the configured detector against the most recent generation (or the img2img input) and returns the image annotated with bounding boxes / mask, without inpainting.<br>**Note:** select a model in the **ADetailer detector** dropdown of the same tab *first* — the preview uses the tab's currently-selected detector and the button is a no-op when no detector is chosen. |
 | 🟡 | Civitai_helper JSON sidecars | A `.json` next to a `.pt` is assumed to contain class names; civitai_helper-generated metadata files break the loader. | `_names_from_json` returns `[]` for shapes that don't look like class containers (lists / `{names: [...]}` / `{0: "...", 1: "..."}`); the loader falls back to `model.names` so unrelated `.json` sidecars are silently ignored. |
 
 ### Workflow & prompting
@@ -214,6 +214,8 @@ If the tab's `Prompt` field is non-empty, the main prompt is not consulted — y
 ## Detection Preview
 
 Tucked inside an accordion at the bottom of each tab: a **Run detection preview** button. When clicked it loads the most recent generation's image (or the img2img input when in img2img), runs the configured detector against it, and renders the resulting bounding boxes / mask without doing any inpainting.
+
+**Before clicking the button, pick a model in the tab's `ADetailer detector` dropdown.** The preview reuses the tab's currently-selected detector — there is no separate detector picker inside the preview accordion. If you haven't chosen one yet (the dropdown is still on the `None` placeholder), the button has nothing to run against.
 
 Useful for tuning confidence threshold + mask preprocessing without burning a full generation each time.
 
