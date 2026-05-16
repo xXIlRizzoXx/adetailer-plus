@@ -629,23 +629,25 @@ def one_ui_group(
         else ["None", *webui_info.ad_model_list]
     )
 
-    # 'Tab clipboard' accordion FIRST — right under the tab selector. Open
-    # by default so the user immediately sees the per-tab toggles (Enable,
-    # Copy/Paste) without clicking. Per-tab management lives at the very
-    # top; the data sections (preset library, detector, prompts, ...)
-    # follow underneath.
+    # 'Enable this tab' is the first thing right below the 1st/2nd/3rd/4th
+    # tab selector — directly visible (no accordion wrapping) so the user
+    # can flip a tab on/off in one click without opening anything.
+    with gr.Row(variant="compact"):
+        w.ad_tab_enable = gr.Checkbox(
+            label=f"Enable this tab ({ordinal(n + 1)})",
+            value=sv("ad_tab_enable", True),
+            visible=True,
+            elem_id=eid("ad_tab_enable"),
+        )
+
+    # 'Tab clipboard' accordion (open) — Copy/Paste between tabs. The
+    # accordion stays open by default so the buttons are immediately
+    # accessible too.
     with gr.Accordion(
         "Tab clipboard",
         open=True,
         elem_id=eid("ad_tab_clipboard_accordion"),
     ):
-        with gr.Row(variant="compact"):
-            w.ad_tab_enable = gr.Checkbox(
-                label=f"Enable this tab ({ordinal(n + 1)})",
-                value=sv("ad_tab_enable", True),
-                visible=True,
-                elem_id=eid("ad_tab_enable"),
-            )
         with gr.Row(variant="compact"):
             copy_btn = gr.Button(
                 value="\U0001F4CB Copy settings",
