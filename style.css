@@ -12,8 +12,13 @@ button[id*="adetailer_ad_preset_load"],
 button[id*="adetailer_ad_preset_rename"],
 button[id*="adetailer_ad_preset_delete"],
 button[id*="adetailer_ad_preset_save"],
-button[id*="adetailer_ad_preset_reset"] {
+button[id*="adetailer_ad_preset_reset"],
+button[id*="adetailer_ad_preview_btn"] {
     border-radius: 8px !important;
+    /* Keep label on a single line so all buttons end up the same height
+     * regardless of min_width — otherwise short content-sized buttons
+     * wrap and grow taller than their wider siblings. */
+    white-space: nowrap !important;
 }
 
 /* ---------- Section labels — bright white, small uppercase ---------- */

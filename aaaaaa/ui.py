@@ -615,20 +615,20 @@ def one_ui_group(
         preset_load_btn = gr.Button(
             value="\U0001F4C2 Load",
             elem_id=eid("ad_preset_load"),
-            size="sm",
-            scale=1,
+            scale=0,
+            min_width=90,
         )
         preset_rename_btn = gr.Button(
             value="✏️ Rename",
             elem_id=eid("ad_preset_rename"),
-            size="sm",
-            scale=1,
+            scale=0,
+            min_width=110,
         )
         preset_delete_btn = gr.Button(
             value="\U0001F5D1 Delete",
             elem_id=eid("ad_preset_delete"),
-            size="sm",
-            scale=1,
+            scale=0,
+            min_width=100,
         )
     with gr.Row(variant="compact", elem_classes=["ad-preset-save-row"]):
         preset_name_box = gr.Textbox(
@@ -641,14 +641,14 @@ def one_ui_group(
         preset_save_btn = gr.Button(
             value="\U0001F4BE Save preset",
             elem_id=eid("ad_preset_save"),
-            size="sm",
-            scale=2,
+            scale=0,
+            min_width=130,
         )
         preset_reset_btn = gr.Button(
             value="\U0001F195 Reset",
             elem_id=eid("ad_preset_reset"),
-            size="sm",
-            scale=1,
+            scale=0,
+            min_width=90,
         )
     preset_status = gr.Markdown(
         value="",
@@ -664,13 +664,15 @@ def one_ui_group(
         copy_btn = gr.Button(
             value="\U0001F4CB Copy settings",
             elem_id=eid("ad_copy_settings"),
-            size="sm",
+            scale=0,
+            min_width=160,
         )
         paste_btn = gr.Button(
             value="\U0001F4E5 Paste settings",
             elem_id=eid("ad_paste_settings"),
             interactive=False,
-            size="sm",
+            scale=0,
+            min_width=160,
         )
 
     # Saved model name may refer to a model the user deleted between sessions.
@@ -854,14 +856,14 @@ def one_ui_group(
                     label="Detections",
                     type="pil",
                     interactive=False,
-                    show_download_button=True,
                     elem_id=eid("ad_preview_output"),
                 )
             with gr.Row():
                 w.ad_preview_btn = gr.Button(
                     "🔍 Run detection preview",
                     elem_id=eid("ad_preview_btn"),
-                    size="sm",
+                    scale=0,
+                    min_width=200,
                 )
                 w.ad_preview_status = gr.Markdown(
                     value="",
