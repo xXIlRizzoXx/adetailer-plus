@@ -94,14 +94,18 @@ def on_widget_change(state: dict, value: Any, *, attr: str):
     return state
 
 
-def on_generate_click(state: dict, *values: Any, tab_index: int = 0):
+def on_generate_click(
+    state: dict, *values: Any, mode: str = "txt2img", tab_index: int = 0
+):
     for attr, value in zip(ALL_ARGS.attrs, values):
         state[attr] = value  # noqa: PERF403
     state["is_api"] = ()
     # Best-effort persistence: stash the just-clicked values so they come
-    # back as the defaults at next WebUI start. Never raise — see
-    # adetailer.persistence for the swallowed-error policy.
-    save_tab_state(tab_index, state)
+    # back as the defaults at next WebUI start. The (mode, tab_index)
+    # pair scopes the persisted state by pipeline so txt2img and img2img
+    # don't overwrite each other. Never raise — see adetailer.persistence
+    # for the swallowed-error policy.
+    save_tab_state(mode, tab_index, state)
     return state
 
 
@@ -189,10 +193,11 @@ def adui(
     infotext_fields = []
     eid = partial(elem_id, n=0, is_img2img=is_img2img)
 
-    # Load per-tab saved state from disk once per UI build. The dict is
-    # passed down into one_ui_group so each widget can read its previous
-    # value as a default.
-    saved_state = load_state()
+    # Load per-tab saved state from disk once per UI build. Scoped by
+    # mode (txt2img vs img2img) so each pipeline has its own last-used
+    # values. The dict is passed down into one_ui_group so each widget
+    # can read its previous value as a default.
+    saved_state = load_state("img2img" if is_img2img else "txt2img")
 
     with InputAccordion(
         value=False,
@@ -875,13 +880,18 @@ def one_ui_group(
 
         # Hires-only toggle on its own row below the LoRA checkboxes — keeps
         # related top-level prompt/pipeline toggles in the same visual area
-        # of the tab without needing an accordion expansion.
+        # of the tab without needing an accordion expansion. Hidden in
+        # img2img (no hires.fix concept there) — symmetric with the
+        # existing `ad_skip_img2img` widget which is shown only in img2img.
+        # Even when hidden the widget still exists in the components list,
+        # so its value (read from persistence/preset) is honoured by the
+        # runtime check — see `_should_skip_for_hires_only`.
         with gr.Row(variant="compact"):
             w.ad_apply_on_hires_only = gr.Checkbox(
                 label="Apply only on hires.fix" + suffix(n),
                 info="Skip the lowres pre-hires call; run ADetailer only on the upscale output. Has no effect in img2img or when hires.fix is off.",
                 value=sv("ad_apply_on_hires_only", False),
-                visible=True,
+                visible=not is_img2img,
                 elem_id=eid("ad_apply_on_hires_only"),
             )
 
@@ -1024,7 +1034,11 @@ def one_ui_group(
     all_inputs = [state, *w.tolist()]
     target_button = webui_info.i2i_button if is_img2img else webui_info.t2i_button
     target_button.click(
-        fn=partial(on_generate_click, tab_index=n),
+        fn=partial(
+            on_generate_click,
+            mode="img2img" if is_img2img else "txt2img",
+            tab_index=n,
+        ),
         inputs=all_inputs,
         outputs=state,
         queue=False,

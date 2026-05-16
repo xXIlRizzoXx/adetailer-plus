@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-16 (audit + fixes: txt2img/img2img parity)
+
+Code-review audit of every fork feature against both `StableDiffusionProcessingTxt2Img` and `StableDiffusionProcessingImg2Img` pipelines. Two issues found and fixed; everything else was already mode-agnostic.
+
+- **Fix A — "Apply only on hires.fix" wrongly skipped img2img.** The toggle, when on, was treating img2img runs as "hires.fix is off → skip the tab entirely". Img2img has no hires.fix concept, so this manifested as the tab silently doing nothing when a user enabled the toggle in txt2img and later opened img2img. Fix on two layers:
+  - `_should_skip_for_hires_only` now early-returns `False` when `isinstance(p, StableDiffusionProcessingImg2Img)`. The toggle becomes a no-op in img2img.
+  - UI checkbox is now `visible=not is_img2img` (symmetric with the existing `ad_skip_img2img` widget which is `visible=is_img2img`). The widget still exists in the component list — its value from persistence/preset is honoured by the runtime check above as defense-in-depth.
+- **Fix B — persistence shared state between txt2img and img2img.** `user_state.json` was keyed by tab index only (`"0"`, `"1"`, …), so a Generate click in img2img Tab 1 overwrote whatever txt2img Tab 1 had stashed. Now keys are scoped as `"<mode>:<tab_index>"` (e.g. `"txt2img:0"`, `"img2img:2"`). Legacy unscoped keys still load for both modes for backwards compatibility on upgrade — the next Generate writes the scoped form and the legacy entry stays dormant until the file is overwritten.
+- Files touched: `scripts/!adetailer.py` (helper), `aaaaaa/ui.py` (checkbox visibility + `mode` param wiring), `adetailer/persistence.py` (new scoping logic + back-compat legacy reads).
+
+Other audited features confirmed mode-agnostic: class filtering (include + NOT + sequential + activation order), detection preview, JSON sidecar tolerance, prompt append fields, LoRA inclusion + trigger extraction, Copy/Paste between tabs, named preset library, manual mode, save intermediate steps, all UI polish.
+
 ## 2026-05-16 (feat: "Apply only on hires.fix" toggle)
 
 - **"Apply only on hires.fix"** — new per-tab checkbox `ad_apply_on_hires_only` (default off) that skips the tab's ADetailer pass during the lowres pre-hires.fix postprocess call and runs it only when the post-upscale image is ready. Saves compute when hires.fix is going to overwrite the lowres detail anyway. Inspired by [Anzhc/aadetailer-reforge](https://github.com/Anzhc/aadetailer-reforge).

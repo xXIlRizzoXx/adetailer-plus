@@ -1,7 +1,16 @@
 """Per-tab state persistence across WebUI restarts.
 
-The state file is a plain JSON keyed by tab index (string). Each tab maps to
-the dict of attr->value the user last submitted via the Generate button.
+The state file is a plain JSON keyed by "<mode>:<tab_index>" strings —
+e.g. `"txt2img:0"`, `"img2img:2"`. The `mode` prefix scopes the state by
+processing pipeline so that txt2img and img2img can have independent
+last-used configurations on the same tab number.
+
+For backwards compatibility a legacy key form (just `"0"`, `"1"`, …
+without a mode prefix) is still loadable: those entries are returned for
+BOTH modes so users upgrading from the pre-scoped layout don't lose
+their last-used values. The next `save_tab_state` call from either mode
+writes the new scoped form; the legacy entry stays harmlessly until the
+JSON file is overwritten.
 
 Storage location: `<extension_root>/user_state.json` (gitignored). We pick
 the extension root by walking up from this file — works regardless of where
@@ -50,8 +59,21 @@ def _load_raw() -> dict[str, Any]:
     return {}
 
 
-def load_state() -> dict[str, dict[str, Any]]:
-    """Return per-tab saved state. Outer key = str(tab_index).
+def _state_key(mode: str, tab_index: int) -> str:
+    """Build the JSON key for a (mode, tab_index) pair."""
+    return f"{mode}:{tab_index}"
+
+
+def load_state(mode: str = "txt2img") -> dict[str, dict[str, Any]]:
+    """Return per-tab saved state for the given mode (`"txt2img"` or
+    `"img2img"`). Outer key = str(tab_index).
+
+    Reads two key forms from disk:
+      1. New scoped form `"<mode>:<tab_index>"` → loaded when mode matches.
+      2. Legacy unscoped form `"0"`, `"1"`, … → loaded for any mode (so
+         users upgrading from the pre-scoped layout keep their last-used
+         values until the next Generate click writes the scoped form).
+    Scoped entries take precedence over legacy ones for the same tab.
 
     Returns an empty dict (no restore) if the user disabled the feature
     in Settings > ADetailer > Remember last-used settings.
@@ -60,14 +82,31 @@ def load_state() -> dict[str, dict[str, Any]]:
         return {}
     raw = _load_raw()
     out: dict[str, dict[str, Any]] = {}
+    prefix = f"{mode}:"
+    # First pass: legacy unscoped keys (lower priority).
     for k, v in raw.items():
-        if isinstance(v, dict):
-            out[str(k)] = v
+        if not isinstance(v, dict):
+            continue
+        key = str(k)
+        if ":" in key:
+            continue
+        out[key] = v
+    # Second pass: scoped keys for THIS mode (higher priority, overrides
+    # any legacy entry for the same tab number).
+    for k, v in raw.items():
+        if not isinstance(v, dict):
+            continue
+        key = str(k)
+        if key.startswith(prefix):
+            out[key[len(prefix):]] = v
     return out
 
 
-def save_tab_state(tab_index: int, state: dict[str, Any]) -> None:
-    """Persist a single tab's state to disk.
+def save_tab_state(
+    mode: str, tab_index: int, state: dict[str, Any]
+) -> None:
+    """Persist a single tab's state to disk under the scoped key
+    `"<mode>:<tab_index>"`.
 
     No-op if the user disabled the feature in Settings > ADetailer.
     Writes the full file atomically: read existing -> mutate -> tmp file ->
@@ -79,7 +118,7 @@ def save_tab_state(tab_index: int, state: dict[str, Any]) -> None:
     try:
         current = _load_raw()
         cleaned = {k: v for k, v in state.items() if k != "is_api"}
-        current[str(tab_index)] = cleaned
+        current[_state_key(mode, tab_index)] = cleaned
 
         tmp = _STATE_FILE.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(current, indent=2, default=str), encoding="utf-8")
