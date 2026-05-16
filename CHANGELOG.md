@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-05-16 (ui: version overlay now brand-prefixed)
+
+- The version badge in the top-right of the accordion header used to read just `v26.2.0+plus.2`. After the rename to **ADetailer Ultimate** + the addition of ~37 fork features, that string alone was ambiguous (the `+plus.2` build-metadata refers to a previous fork name kept locked per the no-auto-bump rule). The overlay now reads `ADetailer Ultimate · v26.2.0+plus.2` so the brand is visible at a glance without altering the locked version string.
+- `aaaaaa/ui.py`: `gr.Markdown(f"ADetailer Ultimate · v{__version__}", ...)`.
+- `style.css`: `.ad-version-overlay` `max-width` bumped from 220px to 280px to fit the longer string without horizontal clipping.
+
 ## 2026-05-16 (feat: 5-feature batch — peer-fork roadmap items 3, 4, 5, 8, 9)
 
 Implements five of the remaining roadmap items in one batch. All five are 🟡 (in the codebase, awaiting hands-on verification by the repo owner — Tests 22 through 26 added to the pending sticky list).

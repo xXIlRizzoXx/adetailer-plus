@@ -113,7 +113,10 @@ div[id*="adetailer_ad_version"].ad-version-overlay {
     left: auto !important;
     width: fit-content !important;
     min-width: 0 !important;
-    max-width: 220px !important;
+    /* Increased from 220px on 2026-05-16 to fit the new brand-prefixed
+     * overlay text "ADetailer Ultimate · v26.2.0+plus.2" (~36 chars)
+     * without horizontal clipping. */
+    max-width: 280px !important;
     z-index: 5;
     pointer-events: none;
     margin: 0 !important;

@@ -285,8 +285,13 @@ def adui(
         # Version "about" badge — CSS pulls it out of normal flow and overlays
         # it onto the accordion header. Lives inside the accordion content so
         # it's automatically hidden when the accordion is collapsed.
+        # Brand prefix added 2026-05-16: the upstream accordion title just
+        # says "ADetailer", and the `+plus.2` build-metadata is a historical
+        # reference to a previous name of this fork. Showing the current
+        # brand here keeps the overlay self-explanatory without bumping the
+        # locked __version__ string.
         gr.Markdown(
-            f"v{__version__}",
+            f"ADetailer Ultimate · v{__version__}",
             elem_id=eid("ad_version"),
             elem_classes=["ad-version-overlay"],
         )
