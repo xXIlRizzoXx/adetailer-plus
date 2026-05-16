@@ -833,6 +833,43 @@ def one_ui_group(
             detection(w, n, is_img2img, saved)
 
         with gr.Accordion(
+            "Detection preview (no inpaint)",
+            open=False,
+            elem_id=eid("ad_preview_accordion"),
+        ):
+            gr.Markdown(
+                "Drop or paste an image, then click the button to run the detector "
+                "with the current settings (classes, NOT, confidence) WITHOUT inpainting. "
+                "The result shows the detected regions with bounding boxes.",
+                elem_classes=["ad-preview-hint"],
+            )
+            with gr.Row():
+                w.ad_preview_input = gr.Image(
+                    label="Input",
+                    type="pil",
+                    interactive=True,
+                    elem_id=eid("ad_preview_input"),
+                )
+                w.ad_preview_output = gr.Image(
+                    label="Detections",
+                    type="pil",
+                    interactive=False,
+                    show_download_button=True,
+                    elem_id=eid("ad_preview_output"),
+                )
+            with gr.Row():
+                w.ad_preview_btn = gr.Button(
+                    "🔍 Run detection preview",
+                    elem_id=eid("ad_preview_btn"),
+                    size="sm",
+                )
+                w.ad_preview_status = gr.Markdown(
+                    value="",
+                    elem_id=eid("ad_preview_status"),
+                    elem_classes=["ad-preset-status"],
+                )
+
+        with gr.Accordion(
             "Mask Preprocessing",
             open=False,
             elem_id=eid("ad_mask_preprocessing_accordion"),
@@ -846,6 +883,77 @@ def one_ui_group(
 
     with gr.Group():
         controlnet(w, n, is_img2img, saved)
+
+    # Wire the detection-preview button now that w.ad_confidence and the
+    # class-filter widgets all exist. The handler is closed over
+    # webui_info.model_mapping so it can resolve the dropdown choice to
+    # the on-disk model path.
+    _model_mapping = webui_info.model_mapping
+
+    def _run_detection_preview(
+        image, model_name, classes_csv, exclude_csv, exclude_mode, confidence
+    ):
+        if image is None:
+            return None, "⚠️ Drop an image into the Input box first."
+        if not model_name or model_name == "None":
+            return None, "⚠️ Pick a detector model first."
+        try:
+            if model_name.lower().startswith("mediapipe"):
+                from adetailer.mediapipe import mediapipe_predict
+
+                pred = mediapipe_predict(model_name, image, confidence)
+            else:
+                from adetailer.ultralytics import ultralytics_predict
+
+                path = _model_mapping.get(model_name, "")
+                if not path:
+                    return None, f"⚠️ Model path not found for '{model_name}'."
+
+                # disable_safe_unpickle is a contextmanager defined in
+                # aaaaaa.helper that toggles torch.load weights-only +
+                # cmd_opts.disable_safe_unpickle. Imported lazily because
+                # the preview module is shared with the standalone Gradio
+                # preview which doesn't have modules.shared.
+                try:
+                    from aaaaaa.helper import disable_safe_unpickle
+
+                    cm = disable_safe_unpickle()
+                except Exception:  # noqa: BLE001
+                    from contextlib import nullcontext
+
+                    cm = nullcontext()
+                with cm:
+                    pred = ultralytics_predict(
+                        path,
+                        image=image,
+                        confidence=float(confidence),
+                        device="",
+                        classes=classes_csv or "",
+                        exclude_classes=(
+                            exclude_csv if exclude_mode and exclude_csv else ""
+                        ),
+                    )
+        except Exception as e:  # noqa: BLE001 — surface error to the UI
+            return None, f"⚠️ Preview failed: {e}"
+
+        n_detections = len(pred.bboxes) if pred.bboxes else 0
+        if pred.preview is None and n_detections == 0:
+            return None, "ℹ️ No detections."
+        return pred.preview, f"✅ {n_detections} detection(s)."
+
+    w.ad_preview_btn.click(
+        fn=_run_detection_preview,
+        inputs=[
+            w.ad_preview_input,
+            w.ad_model,
+            w.ad_model_classes,
+            w.ad_model_classes_excluded,
+            w.ad_model_classes_exclude,
+            w.ad_confidence,
+        ],
+        outputs=[w.ad_preview_output, w.ad_preview_status],
+        queue=False,
+    )
 
     state = gr.State(lambda: state_init(w))
 
