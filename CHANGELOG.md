@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-05-18 (ui: breathing room between widgets in the ControlNet section)
+
+User-reported: the ControlNet row at the bottom of each ADetailer tab
+packed its widgets so tightly that the stacked dropdowns and sliders
+were visually stuck to each other — no breathing room. Cause: `gr.Column
+(variant="compact")` collapses inter-widget margins.
+
+aaaaaa/ui.py: the outer `gr.Row(variant="panel")` of the `controlnet()`
+section now also carries `elem_classes=["ad-cn-row"]`. Comment block
+documents the user-feedback rationale.
+
+style.css: new rule
+    .ad-cn-row > div > div + div { margin-top: 10px !important; }
+adds a 10px gap between stacked siblings inside each column of the
+ControlNet row. First widget keeps its natural top spacing; subsequent
+ones gain the gap.
+
+Verified live via Claude Preview: ControlNet weight + guidance-end
+sliders both report `margin-top: 10px` from getComputedStyle.
+
 ## 2026-05-18 (ux + ui: shorter Paste label, readable preset-status, auto-fade)
 
 Three small fixes from a single round of user feedback during Test 7

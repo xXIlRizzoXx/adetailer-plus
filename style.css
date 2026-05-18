@@ -158,6 +158,16 @@ div.block.ad-preview-status {
     margin-top: 10px !important;
 }
 
+/* ControlNet section: the two-column row with model/weight on the left
+ * and guidance-start/guidance-end on the right packs widgets tightly
+ * by default (gr.Column variant="compact"). Add a 10px gap between
+ * stacked siblings inside each column so the sliders / dropdowns
+ * don't touch each other. Targets the direct grandchildren of the
+ * row's columns. User-reported 2026-05-18. */
+.ad-cn-row > div > div + div {
+    margin-top: 10px !important;
+}
+
 /* Small vertical gap between consecutive prompt textboxes
  * (ad_prompt, ad_prompt_append, ad_negative_prompt,
  * ad_negative_prompt_append). The first row is unaffected — only

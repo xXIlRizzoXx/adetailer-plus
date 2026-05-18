@@ -1849,7 +1849,11 @@ def controlnet(
     if _saved_cn not in cn_models:
         _saved_cn = "None"
 
-    with gr.Row(variant="panel"):
+    # `ad-cn-row` class added 2026-05-18 — user reported the stacked
+    # dropdowns/sliders inside the two columns were visually stuck
+    # together (no breathing room). The CSS rule in style.css adds a
+    # 10px margin-top between siblings inside each column.
+    with gr.Row(variant="panel", elem_classes=["ad-cn-row"]):
         with gr.Column(variant="compact"):
             w.ad_controlnet_model = gr.Dropdown(
                 label="ControlNet model" + suffix(n),
