@@ -49,6 +49,17 @@ button[id*="adetailer_ad_preview_btn"] {
     opacity: 0.75;
 }
 
+/* Collapse the empty styled-markdown containers (preset preview + the
+ * various status lines). Gradio renders them as `div.block` boxes
+ * regardless of content, and our padding/border styling makes the empty
+ * shell visible as a useless band. `:has(.md:empty)` is well-supported in
+ * Chromium / Firefox / Safari since 2022-2023; falls back to "no-op" on
+ * older browsers (the empty band stays — minor cosmetic issue only). */
+div.block.ad-preset-preview:has(.md:empty),
+div.block.ad-preset-status:has(.md:empty) {
+    display: none !important;
+}
+
 /* Preset preview block: shows the selected preset's content live.
  * Slightly indented, smaller font, no border — should feel like a
  * helper hint, not a UI panel. */

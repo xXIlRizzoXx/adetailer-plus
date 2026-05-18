@@ -140,13 +140,18 @@ def _build_overlay_text() -> str:
     return base
 
 
-def _format_preset_preview(name: str | None) -> str:
+def _format_preset_preview(name: str | None):
     """Build a compact markdown summary of a preset's contents for the
     live preview area below the preset dropdown.
 
     Triggers on every preset_dropdown.change event so the user can flip
     through saved presets and read a one-glance summary before deciding
-    whether to Load. Returns an empty string when nothing is selected.
+    whether to Load.
+
+    Returns a `gr.update(...)` rather than a raw string so the function
+    also controls the markdown container's visibility — when there's
+    nothing to show, the container hides entirely (avoiding an empty
+    styled box between the preset row and the detector section).
 
     `[SEP]` and `[PROMPT]` tokens are flagged in the rendered preview
     because they will be expanded at generation time against the main
@@ -157,10 +162,12 @@ def _format_preset_preview(name: str | None) -> str:
 
     name = (name or "").strip()
     if not name or name == PRESET_NONE:
-        return ""
+        return gr.update(value="", visible=False)
     data = get_preset(name)
     if not data:
-        return f"_(preset '{name}' not found on disk)_"
+        return gr.update(
+            value=f"_(preset '{name}' not found on disk)_", visible=True
+        )
 
     def _trunc(s: str, n: int = 140) -> str:
         s = (s or "").strip()
@@ -212,7 +219,7 @@ def _format_preset_preview(name: str | None) -> str:
         lines.append(
             "- _`[SEP]` / `[PROMPT]` tokens will be expanded against the main prompt at generation time._"
         )
-    return "\n".join(lines)
+    return gr.update(value="\n".join(lines), visible=True)
 
 
 def ordinal(n: int) -> str:
@@ -916,8 +923,13 @@ def one_ui_group(
     # on dropdown change BEFORE the user clicks Load. Shows the prompts (with
     # [SEP]/[PROMPT] tokens flagged so the user knows whether they will be
     # expanded against the main prompt), the detector, and a class summary.
+    # Hidden by default so it doesn't render an empty styled box between
+    # the preset row and the detector section when no preset is selected
+    # — visibility is flipped on by `_format_preset_preview` when there's
+    # content to show.
     preset_preview = gr.Markdown(
         value="",
+        visible=False,
         elem_id=eid("ad_preset_preview"),
         elem_classes=["ad-preset-preview"],
     )

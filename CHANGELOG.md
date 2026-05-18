@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-05-16 (ui: hide empty preview/status markdown containers)
+
+User reported a visual artifact: an empty styled band between the preset row and the detector section, even with no preset selected. The cause: `gr.Markdown` widgets with empty content still render their outer `div.block` container, and our CSS adds padding / border-left / background to `.ad-preset-preview`, making the empty shell visible as a useless box. Two-pronged fix:
+
+- **Python side** (`aaaaaa/ui.py`): `_format_preset_preview` now returns `gr.update(value=..., visible=bool)` instead of a raw string, so the preview component is hidden entirely when no preset is selected (or `(none)` sentinel chosen). Initial `preset_preview = gr.Markdown(..., visible=False)`.
+- **CSS fallback** (`style.css`): new rule using the `:has(.md:empty)` selector to collapse any `.ad-preset-preview` or `.ad-preset-status` container whose inner markdown span is empty. Covers `preset_status` and `preset_io_status` (whose handlers live in `_wire_presets` and weren't refactored), and acts as a safety net for the preview if Gradio ever fails to apply the visibility update.
+
+End result: the preset block now has zero vertical footprint between rows when no message / preview is showing. The styled border + background only appear when there's actual content.
+
 ## 2026-05-16 (ui: tab-state controls reordered + Export/Import compacted)
 
 Two layout-level changes to the tab-state block at the top of each ADetailer tab. The widgets and behaviour are unchanged; only the order and the rendering of Export/Import are different.
