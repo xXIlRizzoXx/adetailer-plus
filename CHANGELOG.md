@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-18 (ui: margin between preset-name-to-save row and Copy/Paste row)
+
+User reported the Copy/Paste settings buttons were touching the
+"Preset name to save" textbox directly above them in Forge Neo — no
+breathing room. Added a `.ad-tab-clipboard-row` class on the Copy/Paste
+row and a `margin-top: 10px` rule in `style.css` mirroring the
+existing `.ad-preset-save-row` spacing. The two rows now sit with a
+visible 10px gap.
+
+- aaaaaa/ui.py: gr.Row for Copy/Paste now has elem_classes=["ad-tab-clipboard-row"].
+- style.css: new rule for `.ad-tab-clipboard-row` { margin-top: 10px !important }.
+
 ## 2026-05-18 (ui: shorter label on the export button — "📤 Esport")
 
 User-requested label tweak after the nowrap fix landed: the export

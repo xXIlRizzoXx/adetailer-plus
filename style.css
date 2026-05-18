@@ -101,6 +101,14 @@ div.block.ad-preset-status:has(.md:empty) {
     margin-top: 10px !important;
 }
 
+/* Breathing room between the preset-name-to-save row and the Copy/Paste
+ * settings row that sits directly below it. Without this, the buttons
+ * were touching the textbox above (user-reported visual issue in Forge
+ * Neo 2026-05-18). */
+.ad-tab-clipboard-row {
+    margin-top: 10px !important;
+}
+
 /* Small vertical gap between consecutive prompt textboxes
  * (ad_prompt, ad_prompt_append, ad_negative_prompt,
  * ad_negative_prompt_append). The first row is unaffected — only

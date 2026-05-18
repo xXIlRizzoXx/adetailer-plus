@@ -902,8 +902,11 @@ def one_ui_group(
     # Copy / Paste settings — inter-tab clipboard. Moved here from the top
     # of the tab so it sits directly under the preset name-to-save row,
     # grouping all tab-state copying operations (Save preset, Reset, Copy,
-    # Paste) in one visual block.
-    with gr.Row(variant="compact"):
+    # Paste) in one visual block. The `.ad-tab-clipboard-row` class adds
+    # a margin-top so the buttons don't touch the textbox above them
+    # (user reported the rows were rendering with zero spacing in Forge
+    # Neo).
+    with gr.Row(variant="compact", elem_classes=["ad-tab-clipboard-row"]):
         copy_btn = gr.Button(
             value="\U0001F4CB Copy settings",
             elem_id=eid("ad_copy_settings"),
