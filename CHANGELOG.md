@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-05-18 (ux: info text on CLASSES dropdown explains "empty = all")
+
+User-reported confusion: when a multiclass detector is selected, the
+CLASSES dropdown is intentionally NOT auto-populated (it's a filter —
+empty means "no narrowing, all classes detected"). But the empty state
+looks identical to "broken, nothing will be detected".
+
+Added a `gr.Dropdown(..., info="If empty, ALL classes the model
+produces are inpainted. Select to narrow down to specific classes.")`
+to the `ad_model_classes_dropdown` widget so the empty default is
+self-explanatory.
+
+- aaaaaa/ui.py: `gr.Dropdown(info=...)` parameter added to
+  `w.ad_model_classes_dropdown`. Comment block notes the UX rationale.
+
 ## 2026-05-18 (ui: margin between preset-name-to-save row and Copy/Paste row)
 
 User reported the Copy/Paste settings buttons were touching the

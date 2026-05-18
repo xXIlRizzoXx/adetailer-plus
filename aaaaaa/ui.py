@@ -1048,8 +1048,14 @@ def one_ui_group(
             )
             # UI-only dropdown: not in ALL_ARGS. It syncs into ad_model_classes
             # (CSV) for the include path or ad_model_classes_excluded for exclude.
+            # Info text added 2026-05-18 per user UX feedback: the dropdown is
+            # NOT auto-populated when a multiclass model is chosen; the user
+            # must opt in by selecting classes. Make the "empty = all" default
+            # explicit so people don't think the empty dropdown means "no
+            # detection will happen".
             w.ad_model_classes_dropdown = gr.Dropdown(
                 label="ADetailer detector CLASSES" + suffix(n),
+                info="If empty, ALL classes the model produces are inpainted. Select to narrow down to specific classes.",
                 choices=[],
                 value=[],
                 multiselect=True,
