@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-05-18 (fix: amber-pill not nested anymore — single chip)
+
+User-reported follow-up on the previous amber-pill commit: the warning
+rendered as TWO nested amber chips (one inside the other) because
+Gradio propagates `elem_classes=["ad-preview-status"]` to BOTH the
+outer `.block` wrapper AND the inner `.prose` markdown wrapper. The
+`.ad-preview-status { background; border-left; padding; rounded }` rule
+was matching both, drawing two boxes.
+
+Fix: scope the pill styling to only the outer wrapper via
+`div.block.ad-preview-status` (more specific selector that doesn't
+match the inner `.prose` markdown div). Text properties (color, font
+size, opacity) stay on `.ad-preview-status p` so they apply regardless
+of which wrapper the `<p>` is nested under.
+
+style.css
+- `.ad-preview-status, .ad-preview-status p { ... }` → split into:
+    `div.block.ad-preview-status { background; border-left; padding; rounded }`
+    `.ad-preview-status p          { color; font-size; opacity; reset margins }`
+- Comment block expanded to warn future edits about the dual-class
+  Gradio propagation.
+
+Verified live via Claude Preview: outer wrapper has the amber pill
+styling (bg + border + padding), inner wrapper has transparent
+background + 0 padding. Single chip on screen, no nesting.
+
 ## 2026-05-18 (ux: legible amber-pill warning for Detection preview status)
 
 User-reported: the "⚠️ Pick a detector model first." warning emitted by

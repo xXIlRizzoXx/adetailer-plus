@@ -71,22 +71,30 @@ div.block.ad-preview-status:has(.md:empty) {
  * the dim `.ad-preset-status` styling) because the messages here are
  * user-facing warnings ("Pick a detector first.", "Drop an image
  * first.") that have to be readable at a glance. Light amber pill on a
- * subtle background — clearly visible without being aggressive. */
-.ad-preview-status,
-.ad-preview-status p {
+ * subtle background — clearly visible without being aggressive.
+ *
+ * IMPORTANT: Gradio propagates `elem_classes` to BOTH the outer
+ * `.block` wrapper AND the inner `.prose` markdown wrapper, so a naive
+ * `.ad-preview-status { background; border; padding }` rule renders TWO
+ * nested amber pills (user-reported bug 2026-05-18). Scope the box
+ * styling to ONLY the outer `div.block.ad-preview-status`; the inner
+ * markdown wrapper is left untouched. Text properties (color, font-
+ * size, opacity) live on the `<p>` so they apply regardless of which
+ * wrapper they're nested under.
+ */
+div.block.ad-preview-status {
     margin: 6px 0 0 0 !important;
     padding: 4px 10px !important;
-    font-size: 12px !important;
-    opacity: 1 !important;
-    color: #fbbf24 !important;
     background: rgba(251, 191, 36, 0.08) !important;
     border-left: 2px solid rgba(251, 191, 36, 0.5) !important;
     border-radius: 4px !important;
 }
 .ad-preview-status p {
-    /* Reset the wrapper rule's padding for the inner <p>; the wrapper
-     * already provides the pill padding. */
+    margin: 0 !important;
     padding: 0 !important;
+    font-size: 12px !important;
+    opacity: 1 !important;
+    color: #fbbf24 !important;
 }
 
 /* Preset preview block: shows the selected preset's content live.
