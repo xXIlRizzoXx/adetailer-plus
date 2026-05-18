@@ -816,7 +816,12 @@ def one_ui_group(
     ):
         with gr.Row(variant="compact"):
             preset_export_btn = gr.DownloadButton(
-                label="\U0001F4E4 Export to JSON",
+                # Short label per user request 2026-05-18 — the previous
+                # "Export to JSON" wrapped on two lines until the CSS
+                # nowrap rule was extended; the user then asked for a
+                # tighter label outright. Emoji kept to mirror the
+                # Import button's 📥 marker visually.
+                label="\U0001F4E4 Esport",
                 elem_id=eid("ad_preset_export_btn"),
                 scale=0,
                 min_width=160,

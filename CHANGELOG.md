@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-05-18 (ui: shorter label on the export button — "📤 Esport")
+
+User-requested label tweak after the nowrap fix landed: the export
+DownloadButton now reads `📤 Esport` (was `📤 Export to JSON`).
+Shorter label = tighter button, more consistent visual weight with the
+adjacent `📥 Import` UploadButton. Emoji kept on both buttons for
+parallel visual markers.
+
 ## 2026-05-18 (ui: nowrap on Export/Import buttons + preview.py brand rename)
 
 Visual-inspection sweep via Claude Preview turned up a regression on the new
