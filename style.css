@@ -47,12 +47,15 @@ button[id*="adetailer_ad_preset_import_btn"] {
     opacity: 1 !important;
 }
 
-/* Preset status line: faded by default so it doesn't shout for attention. */
+/* Preset status line: visible but not aggressive. Bumped opacity 0.75→0.95
+ * and font 11→12px on 2026-05-18 — user reported the previous setting
+ * was too faded to read at a glance. Paired with `preset-status-fade.js`
+ * which auto-clears the message ~4 seconds after it appears. */
 .ad-preset-status,
 .ad-preset-status p {
     margin: 2px 0 0 0 !important;
-    font-size: 11px !important;
-    opacity: 0.75;
+    font-size: 12px !important;
+    opacity: 0.95;
 }
 
 /* Collapse the empty styled-markdown containers (preset preview + the

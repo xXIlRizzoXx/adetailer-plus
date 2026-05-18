@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-05-18 (ux + ui: shorter Paste label, readable preset-status, auto-fade)
+
+Three small fixes from a single round of user feedback during Test 7
+/ Test 11 / Test 25 hands-on verification:
+
+1. **Paste button label was overflowing.** After clicking Copy on
+   tab N, the Paste button on every other tab updates its label to
+   include the source-tab number. The previous format `📥 Paste
+   settings from Nth tab here` was 36 chars and overflowed the 160px
+   min_width, making the 📥 emoji render oddly in Chromium.
+   Shortened to `📥 Paste from Nth tab` (21 chars) — fits cleanly
+   and keeps the emoji legible.
+2. **preset_status was too faded to read at a glance.** Bumped
+   opacity from 0.75 → 0.95 and font-size from 11 → 12px in
+   `.ad-preset-status`. Still subtle enough to not shout for
+   attention, but legible.
+3. **Status messages now auto-fade after 4 seconds.** New file
+   `javascript/preset-status-fade.js` watches every `.ad-preset-
+   status` container, detects when its inner markdown gains non-
+   empty content, and clears that content 4 s later. The
+   `:has(.md:empty)` CSS rule then hides the container so it
+   doesn't leave a styled-but-empty band. Only touches the DOM;
+   doesn't notify Gradio's reactive store. Next user action that
+   writes a message restarts the cycle.
+
+Files:
+- aaaaaa/ui.py: `_copy_fn` label string shortened.
+- style.css: `.ad-preset-status` font + opacity bump, comment block
+  notes the auto-fade pairing.
+- javascript/preset-status-fade.js: new file.
+
 ## 2026-05-18 (ui: bump left padding on amber pill so text doesn't hug the border)
 
 User-reported follow-up on the amber preview-status pill: the text was

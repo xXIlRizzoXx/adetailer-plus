@@ -461,7 +461,11 @@ def _wire_copy_paste(
         def _make_copy_fn(idx: int):
             def _copy_fn(*values):
                 new_clip = (idx, list(values))
-                label = f"\U0001F4E5 Paste settings from {ordinal(idx + 1)} tab here"
+                # Short post-Copy label (was "📥 Paste settings from Nth tab
+                # here" — 36 chars, overflowed the 160px min_width and the
+                # 📥 emoji rendered weirdly in Chromium). Shorter form
+                # fits cleanly + keeps the emoji legible.
+                label = f"\U0001F4E5 Paste from {ordinal(idx + 1)} tab"
                 paste_updates = []
                 for j in range(num_models):
                     if j == idx:
