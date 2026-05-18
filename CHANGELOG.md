@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-05-18 (ux: legible amber-pill warning for Detection preview status)
+
+User-reported: the "⚠️ Pick a detector model first." warning emitted by
+the Detection preview button was rendering as faded 11px grey text
+because the status markdown widget shared the `.ad-preset-status`
+class (which is intentionally dim, designed for non-shouting status
+lines like "preset saved"). Warnings need to be readable at a glance.
+
+- aaaaaa/ui.py: `w.ad_preview_status` now uses `elem_classes=["ad-preview-status"]`
+  (dedicated class) instead of sharing `.ad-preset-status`. Comment
+  block notes the rationale.
+- style.css: new `.ad-preview-status` ruleset — full opacity, 12px font,
+  amber color (#fbbf24), subtle amber pill background, amber-tinted
+  border-left. Auto-hide-when-empty rule extended to include the new
+  class so the pill only appears when there's a message to show.
+
+Verified live via Claude Preview by injecting the warning text into
+the markdown widget: the pill renders as a clearly-visible amber
+"chip" inline with the Run-detection-preview button.
+
 ## 2026-05-18 (ux: info text on CLASSES dropdown explains "empty = all")
 
 User-reported confusion: when a multiclass detector is selected, the

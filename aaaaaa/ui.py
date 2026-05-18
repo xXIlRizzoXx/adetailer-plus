@@ -1257,10 +1257,17 @@ def one_ui_group(
                     scale=0,
                     min_width=200,
                 )
+                # Status line for the "Run detection preview" button.
+                # Uses `.ad-preview-status` (NOT `.ad-preset-status`) because
+                # the messages here are user-facing warnings ("Pick a
+                # detector first.", "Drop an image first.") that need to be
+                # legible — the dim faded look of `.ad-preset-status` makes
+                # them blend into the background. The dedicated class
+                # carries full opacity + a subtle warning pill style.
                 w.ad_preview_status = gr.Markdown(
                     value="",
                     elem_id=eid("ad_preview_status"),
-                    elem_classes=["ad-preset-status"],
+                    elem_classes=["ad-preview-status"],
                 )
 
         with gr.Accordion(
