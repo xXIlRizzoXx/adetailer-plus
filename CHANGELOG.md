@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-05-16 (ui: tab-state controls reordered + Export/Import compacted)
+
+Two layout-level changes to the tab-state block at the top of each ADetailer tab. The widgets and behaviour are unchanged; only the order and the rendering of Export/Import are different.
+
+**Reorder (top-to-bottom of the tab now)**:
+1. `Enable this tab` — alone on its row (was sharing the row with Copy/Paste).
+2. `▾ Preset library export / import` accordion — **moved from the bottom of the preset block to immediately under Enable**. Collapsed by default, so the daily-use preset row stays the first thing the eye lands on after Enable.
+3. **Preset library** — `Saved presets ▾ + Load + Rename + Delete` row, then `Preset name + Save preset + Reset` row (unchanged).
+4. `[📋 Copy settings]  [📥 Paste settings]` — **moved DOWN from the very top of the tab to directly under the preset-name-to-save row**. All "tab-state copying operations" (Save preset, Reset, Copy, Paste) are now grouped in one visual block.
+5. Preset status + live preview markdown (unchanged).
+
+**Compaction of the Export/Import accordion**:
+- The two big `gr.File` drop-zones (each rendering ~100px tall whether or not they have content) are replaced by `gr.DownloadButton` for export and `gr.UploadButton` for import — both render as ordinary buttons, much shorter vertically.
+- Three controls now fit on a single row: `[📤 Export to JSON]  [📥 Import]  ☐ Overwrite on conflict`.
+- The accordion's expanded height drops from ~280px to ~70px.
+- Wiring change: `preset_export_btn.click(...).then(...)` — the click handler returns a file path that Gradio uses to trigger the download AND updates `preset_export_btn` itself (modern DownloadButton pattern), followed by a `.then(...)` that writes the status line. `preset_import_btn.upload(...)` fires on file pick/drop and the button's value carries the uploaded path.
+
 ## 2026-05-16 (ui: overlay auto-updates with current git short-hash)
 
 The top-right overlay used to be a static `"ADetailer Ultimate · v26.2.0+plus.2"` string — informative but unable to signal "is my install current?" because the locked `__version__` never changes between commits. Now the overlay also appends the current commit's 7-char short hash, read directly from `<extension_root>/.git/HEAD` at UI-build time:

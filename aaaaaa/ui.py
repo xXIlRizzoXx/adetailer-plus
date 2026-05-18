@@ -777,12 +777,19 @@ def one_ui_group(
         else ["None", *webui_info.ad_model_list]
     )
 
-    # Top of the tab content — all directly visible, no accordion wrapping:
-    #   - Enable this tab (per-tab on/off)
-    #   - Copy / Paste settings (inter-tab clipboard)
-    # The 'Tab clipboard' accordion has been removed at user request — the
-    # two buttons sit right below the Enable checkbox so they're available
-    # in one click without opening anything.
+    # Top of the tab content — all directly visible, no accordion wrapping.
+    # Layout reorganised 2026-05-16:
+    #   - Enable this tab           (sits alone at the top)
+    #   - Preset library export / import (accordion, collapsed default) —
+    #     was previously at the BOTTOM of the preset block; moved here so
+    #     it sits above the daily-use preset controls.
+    #   - Preset library            (dropdown + load/rename/delete row,
+    #                                then name-textbox + save + reset row)
+    #   - Copy / Paste settings     (moved DOWN from the top — now sits
+    #                                directly under the preset name-to-save
+    #                                row so all "tab-state operations" are
+    #                                grouped together)
+    #   - Preset status + preview   (just below Copy/Paste)
     with gr.Row(variant="compact"):
         w.ad_tab_enable = gr.Checkbox(
             label=f"Enable this tab ({ordinal(n + 1)})",
@@ -791,19 +798,39 @@ def one_ui_group(
             elem_id=eid("ad_tab_enable"),
         )
 
-    with gr.Row(variant="compact"):
-        copy_btn = gr.Button(
-            value="\U0001F4CB Copy settings",
-            elem_id=eid("ad_copy_settings"),
-            scale=0,
-            min_width=160,
-        )
-        paste_btn = gr.Button(
-            value="\U0001F4E5 Paste settings",
-            elem_id=eid("ad_paste_settings"),
-            interactive=False,
-            scale=0,
-            min_width=160,
+    # Export / Import preset library — power-user controls, collapsed by
+    # default. Uses the compact gr.DownloadButton + gr.UploadButton pair
+    # instead of two big gr.File drop-zones so the accordion stays tiny
+    # vertically when expanded.
+    with gr.Accordion(
+        "Preset library export / import",
+        open=False,
+        elem_id=eid("ad_preset_io_accordion"),
+    ):
+        with gr.Row(variant="compact"):
+            preset_export_btn = gr.DownloadButton(
+                label="\U0001F4E4 Export to JSON",
+                elem_id=eid("ad_preset_export_btn"),
+                scale=0,
+                min_width=160,
+            )
+            preset_import_btn = gr.UploadButton(
+                label="\U0001F4E5 Import",
+                file_types=[".json"],
+                elem_id=eid("ad_preset_import_btn"),
+                scale=0,
+                min_width=110,
+            )
+            preset_import_overwrite = gr.Checkbox(
+                label="Overwrite on conflict",
+                value=False,
+                scale=1,
+                elem_id=eid("ad_preset_import_overwrite"),
+            )
+        preset_io_status = gr.Markdown(
+            value="",
+            elem_id=eid("ad_preset_io_status"),
+            elem_classes=["ad-preset-status"],
         )
 
     # Preset library — load/save/delete/rename named tab configurations.
@@ -859,6 +886,26 @@ def one_ui_group(
             scale=0,
             min_width=90,
         )
+
+    # Copy / Paste settings — inter-tab clipboard. Moved here from the top
+    # of the tab so it sits directly under the preset name-to-save row,
+    # grouping all tab-state copying operations (Save preset, Reset, Copy,
+    # Paste) in one visual block.
+    with gr.Row(variant="compact"):
+        copy_btn = gr.Button(
+            value="\U0001F4CB Copy settings",
+            elem_id=eid("ad_copy_settings"),
+            scale=0,
+            min_width=160,
+        )
+        paste_btn = gr.Button(
+            value="\U0001F4E5 Paste settings",
+            elem_id=eid("ad_paste_settings"),
+            interactive=False,
+            scale=0,
+            min_width=160,
+        )
+
     preset_status = gr.Markdown(
         value="",
         elem_id=eid("ad_preset_status"),
@@ -881,109 +928,75 @@ def one_ui_group(
         queue=False,
     )
 
-    # Export / Import preset library — power-user controls, collapsed by
-    # default so they don't crowd the standard preset row. Round-trips the
-    # entire user_presets.json so configurations can be shared between
-    # installs or backed up.
-    with gr.Accordion(
-        "Preset library export / import",
-        open=False,
-        elem_id=eid("ad_preset_io_accordion"),
-    ):
-        preset_export_file = gr.File(
-            label="Exported preset library",
-            interactive=False,
-            visible=True,
-            elem_id=eid("ad_preset_export_file"),
-        )
-        with gr.Row(variant="compact"):
-            preset_export_btn = gr.Button(
-                value="\U0001F4E4 Export to JSON",
-                elem_id=eid("ad_preset_export_btn"),
-                scale=0,
-                min_width=160,
-            )
-        preset_import_file = gr.File(
-            label="Drop a preset JSON here to import",
-            file_types=[".json"],
-            type="filepath",
-            visible=True,
-            elem_id=eid("ad_preset_import_file"),
-        )
-        with gr.Row(variant="compact"):
-            preset_import_overwrite = gr.Checkbox(
-                label="Overwrite existing presets on name conflict",
-                value=False,
-                elem_id=eid("ad_preset_import_overwrite"),
-            )
-            preset_import_btn = gr.Button(
-                value="\U0001F4E5 Import",
-                elem_id=eid("ad_preset_import_btn"),
-                scale=0,
-                min_width=110,
-            )
-        preset_io_status = gr.Markdown(
-            value="",
-            elem_id=eid("ad_preset_io_status"),
-            elem_classes=["ad-preset-status"],
-        )
-
-    # Wire Export/Import locally — they refresh the CURRENT tab's preset
-    # dropdown so the user sees imported presets immediately. Other tabs'
-    # dropdowns will refresh on next UI reload (Gradio re-builds the
-    # adui() tree). Status messages summarise what happened in plain text.
-    def _do_export() -> tuple[str | None, str]:
+    # Wire Export (DownloadButton) and Import (UploadButton) locally.
+    # DownloadButton: click handler returns a file path; Gradio triggers the
+    # download automatically and updates the button's `value` so subsequent
+    # clicks re-serve the file. UploadButton: upload event yields the path
+    # of the uploaded file via the button's `inputs` value.
+    def _do_export() -> str:
+        """Click handler for the export DownloadButton. Writes the current
+        preset library to a temp file and returns its path so Gradio can
+        serve the download. Also updates the status line side-effect-free
+        via a separate output target."""
         import tempfile
         from pathlib import Path
 
-        try:
-            payload = export_presets_json()
-        except Exception as e:  # noqa: BLE001
-            return None, f"_export failed: {e}_"
-        # Write to a stable named temp file so the download has a sensible
-        # filename. Gradio cleans up tempfiles between sessions.
+        payload = export_presets_json()
         tmp_dir = Path(tempfile.gettempdir())
         out = tmp_dir / "adetailer-ultimate-presets.json"
-        try:
-            out.write_text(payload, encoding="utf-8")
-        except OSError as e:
-            return None, f"_export failed: {e}_"
-        return str(out), f"✅ Exported **{len(get_preset_names())}** preset(s). Use the download button on the file box above."
+        out.write_text(payload, encoding="utf-8")
+        return str(out)
 
-    def _do_import(file_path: str | None, overwrite: bool) -> tuple[Any, str]:
-        if not file_path:
-            return gr.update(), "_no file selected — drop a preset JSON in the box first._"
+    def _do_export_status() -> str:
+        return f"✅ Exported **{len(get_preset_names())}** preset(s)."
+
+    def _do_import(uploaded_path: str | None, overwrite: bool) -> tuple[Any, str]:
+        """Upload handler. `uploaded_path` is the local filesystem path of
+        the file the user dropped on the UploadButton."""
+        if not uploaded_path:
+            return gr.update(), "_no file received._"
         try:
-            payload = open(file_path, "r", encoding="utf-8").read()
+            with open(uploaded_path, "r", encoding="utf-8") as f:
+                payload = f.read()
         except OSError as e:
             return gr.update(), f"_could not read file: {e}_"
         added, replaced, skipped = import_presets_json(
             payload, overwrite=overwrite
         )
-        parts = []
+        parts: list[str] = []
         if added:
             parts.append(f"➕ **{added}** added")
         if replaced:
             parts.append(f"\U0001F501 **{replaced}** replaced")
         if skipped:
-            parts.append(f"⏭ **{len(skipped)}** skipped (already present; toggle 'Overwrite' to replace)")
+            parts.append(
+                f"⏭ **{len(skipped)}** skipped (already present; tick 'Overwrite' to replace)"
+            )
         if not parts:
             msg = "_no presets imported (file empty, invalid, or all names skipped)._"
         else:
             msg = " · ".join(parts)
-        # Refresh the local dropdown to surface the new entries.
         names = [PRESET_NONE] + get_preset_names()
         return gr.update(choices=names), msg
 
+    # DownloadButton wiring: the click both refreshes the button's `value`
+    # (triggering the download) AND updates the status line.
     preset_export_btn.click(
         fn=_do_export,
         inputs=None,
-        outputs=[preset_export_file, preset_io_status],
+        outputs=preset_export_btn,
+        queue=False,
+    ).then(
+        fn=_do_export_status,
+        inputs=None,
+        outputs=preset_io_status,
         queue=False,
     )
-    preset_import_btn.click(
+    # UploadButton fires `.upload` when the user picks/drops a file; the
+    # button's value (the upload path) is included in `inputs`.
+    preset_import_btn.upload(
         fn=_do_import,
-        inputs=[preset_import_file, preset_import_overwrite],
+        inputs=[preset_import_btn, preset_import_overwrite],
         outputs=[preset_dropdown, preset_io_status],
         queue=False,
     )
