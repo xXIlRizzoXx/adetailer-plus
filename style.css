@@ -13,7 +13,13 @@ button[id*="adetailer_ad_preset_rename"],
 button[id*="adetailer_ad_preset_delete"],
 button[id*="adetailer_ad_preset_save"],
 button[id*="adetailer_ad_preset_reset"],
-button[id*="adetailer_ad_preview_btn"] {
+button[id*="adetailer_ad_preview_btn"],
+/* Export = gr.DownloadButton, Import = gr.UploadButton. Both render
+ * as <button> at the root and were missing from the nowrap list —
+ * the "Export to JSON" label was wrapping onto two lines, growing the
+ * button taller than its single-line siblings. */
+button[id*="adetailer_ad_preset_export_btn"],
+button[id*="adetailer_ad_preset_import_btn"] {
     border-radius: 8px !important;
     /* Keep label on a single line so all buttons end up the same height
      * regardless of min_width — otherwise short content-sized buttons

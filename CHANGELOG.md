@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-05-18 (ui: nowrap on Export/Import buttons + preview.py brand rename)
+
+Visual-inspection sweep via Claude Preview turned up a regression on the new
+Export/Import buttons added 2026-05-16: the "Export to JSON" label wrapped
+onto two lines (taller than its single-line siblings) because the CSS
+nowrap rule had not been extended to cover the new button elem_ids.
+
+- `style.css`: `ad_preset_export_btn` and `ad_preset_import_btn` added to
+  the `button[id*="..."]` nowrap selector list. `gr.DownloadButton` /
+  `gr.UploadButton` render as `<button>` at the root so the same rule
+  applies — confirmed via preview restart.
+- `preview.py` + `.claude/launch.json`: title strings updated from
+  "ADetailer Plus" → "ADetailer Ultimate" so the Claude Preview header
+  is consistent with the current brand. Launch-config name renamed
+  `adetailer-plus-preview` → `adetailer-ultimate-preview`.
+
+Same-pass also confirmed via Preview the following are working as
+expected: brand-prefixed live overlay with current git short-hash
+(7fe99b9), Copy/Paste row below preset-name-to-save row, compact
+Export/Import accordion (~70px expanded), empty preset_status /
+preset_io_status hidden via `:has(.md:empty)` (no dead bands).
+
 ## 2026-05-16 (ui: hide empty preview/status markdown containers)
 
 User reported a visual artifact: an empty styled band between the preset row and the detector section, even with no preset selected. The cause: `gr.Markdown` widgets with empty content still render their outer `div.block` container, and our CSS adds padding / border-left / background to `.ad-preset-preview`, making the empty shell visible as a useless box. Two-pronged fix:
