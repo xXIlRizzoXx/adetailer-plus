@@ -176,6 +176,23 @@ div.block.ad-preview-status {
     margin-top: 6px !important;
 }
 
+/* ---------- Reset-settings button (Settings → ADetailer) ----------
+ * Stop variant gives the red accent automatically. We just add a top
+ * margin (the OptionHTML helper text above sits flush otherwise) and
+ * cap the width so the button doesn't stretch across the full Settings
+ * column — destructive controls feel safer when they're compact.
+ *
+ * elem_id is `setting_ad_reset_button`; the button class is added by
+ * the factory in `scripts/!adetailer.py::_make_reset_settings_button`.
+ */
+button.ad-settings-reset-btn,
+button[id="setting_ad_reset_button"] {
+    margin-top: 8px !important;
+    max-width: 360px !important;
+    border-radius: 8px !important;
+    white-space: nowrap !important;
+}
+
 /* ---------- Version "about" overlay on the accordion header ----------
  * The version markdown lives inside the accordion's content area (so
  * it auto-hides when the accordion is collapsed), but we pull it out

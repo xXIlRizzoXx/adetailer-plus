@@ -96,6 +96,17 @@ def ultralytics_predict(
 
     confidences = pred[0].boxes.conf.cpu().numpy().tolist()
 
+    # When `use_bbox_mask` is on we discard the seg silhouette in favour of
+    # the bbox rectangle; clear `pred[0].masks` so `plot()` skips the seg
+    # overlay and the saved preview accurately reflects what the inpaint
+    # will receive (otherwise the saved `*-ad-preview*.png` shows the seg
+    # shape while the inpaint actually used the bbox — confusing).
+    if use_bbox_mask:
+        try:
+            pred[0].masks = None
+        except (AttributeError, TypeError):
+            pass
+
     preview = pred[0].plot()
     preview = cv2.cvtColor(preview, cv2.COLOR_BGR2RGB)
     preview = Image.fromarray(preview)

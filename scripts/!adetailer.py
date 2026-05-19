@@ -69,6 +69,7 @@ from controlnet_ext import (
     get_cn_models,
 )
 from modules import images, paths, script_callbacks, scripts, shared
+from modules.options import OptionDiv  # not re-exported via modules.shared
 from modules.devices import NansException
 from modules.processing import (
     Processed,
@@ -1216,6 +1217,94 @@ def on_after_component(component, **_kwargs):
         img2img_submit_button = component
 
 
+def _reset_adetailer_settings() -> str:
+    """Reset every option registered under the ADetailer Settings section
+    back to its declared default.
+
+    Walks `shared.opts.data_labels` once and resets only entries whose
+    section identifier matches `("ADetailer", ADETAILER)` — so unrelated
+    options (sd_model_checkpoint, sampler choices, etc.) are left alone.
+
+    Returns a short human-readable status string. The click handler ignores
+    the return value (the page reload that follows wipes the gradio state
+    anyway) but we keep it for log readability.
+    """
+    reset_count = 0
+    skipped_count = 0
+    for key, info in list(shared.opts.data_labels.items()):
+        # Skip entries that aren't ours (e.g. core/other-extension settings).
+        if not info.section or info.section[0] != "ADetailer":
+            continue
+        # Skip non-savable entries (HTML/divider rows, the reset button itself).
+        if getattr(info, "do_not_save", False):
+            skipped_count += 1
+            continue
+        try:
+            current = shared.opts.data.get(key, info.default)
+            if current == info.default:
+                continue  # already at default
+            # `run_callbacks=False`: defaults are inert; we don't want side
+            # effects (e.g. reload prompts) firing for every key we touch.
+            if shared.opts.set(key, info.default, run_callbacks=False):
+                reset_count += 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ADetailer] reset: skipped '{key}' ({exc})")
+
+    try:
+        shared.opts.save(shared.config_filename)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ADetailer] reset: save failed ({exc})")
+        return f"Reset {reset_count} options (save failed: {exc})"
+
+    print(
+        f"[ADetailer] reset complete — {reset_count} option(s) restored to "
+        f"defaults ({skipped_count} skipped)."
+    )
+    return f"Reset {reset_count} option(s) to defaults."
+
+
+def _make_reset_settings_button(**kwargs):  # noqa: ANN003
+    """Component factory for the 'Reset ADetailer settings' button.
+
+    Forge Neo's Settings page builds widgets via `comp(label=..., value=...,
+    elem_id=..., **args)` — `gr.Button` doesn't accept a `label` kwarg, so
+    we drop it here and use the OptionInfo `default` as the visible button
+    text. The click handler runs the Python reset and triggers a full page
+    reload so every Settings widget re-reads its (now-default) value from
+    `shared.opts`.
+
+    The browser-side `confirm()` gates the destructive action: clicking
+    Cancel returns false from the JS callback which the WebUI runtime
+    translates into a no-op (no Python invocation, no reload).
+    """
+    elem_id = kwargs.pop("elem_id", "setting_ad_reset_button")
+    label_text = kwargs.pop("value", None) or kwargs.pop("label", None) or (
+        "🔄 Reset ADetailer settings to defaults"
+    )
+    btn = gr.Button(
+        value=label_text,
+        elem_id=elem_id,
+        elem_classes=["ad-settings-reset-btn"],
+        variant="stop",
+    )
+    btn.click(
+        fn=_reset_adetailer_settings,
+        inputs=[],
+        outputs=[],
+        _js=(
+            "() => {"
+            "  if (!confirm('Reset ALL ADetailer settings to their defaults?"
+            "\\n\\nThis cannot be undone. The page will reload after reset.')) {"
+            "    return []; "
+            "  }"
+            "  setTimeout(() => { location.reload(); }, 800);"
+            "  return [];"
+            "}"
+        ),
+    )
+    return btn
+
+
 def on_ui_settings():
     section = ("ADetailer", ADETAILER)
     shared.opts.add_option(
@@ -1367,6 +1456,48 @@ def on_ui_settings():
             "When enabled, ADetailer's tab settings (detector, prompts, denoise, padding, etc.) are saved on every Generate click and restored at the next WebUI start. Cache file: extensions/<this-extension>/user_state.json. Disable to always start with the extension's defaults."
         ),
     )
+
+    # Fork addition: small divider + helper text before the reset button so
+    # users understand what the destructive control below does. Both rows are
+    # `do_not_save=True` already (OptionHTML/OptionDiv set the flag in their
+    # ctor), so they don't add anything to the saved config.
+    #
+    # CRITICAL: `OptionDiv` and `OptionHTML` do NOT set `.section` in their
+    # ctor (verified in modules/options.py — only `OptionInfo.__init__` accepts
+    # a `section` kwarg, and the two subclasses don't forward it). Without a
+    # section, `opts.reorder()` crashes on `item.section[1]`
+    # (TypeError: 'NoneType' object is not subscriptable) at WebUI startup,
+    # blocking the entire UI. Set the section manually right after
+    # construction.
+    reset_divider = OptionDiv()
+    reset_divider.section = section
+    shared.opts.add_option("ad_reset_divider", reset_divider)
+
+    reset_help = shared.OptionHTML(
+        "<b>Reset ADetailer settings</b> — restores every option on this "
+        "page (max tabs, save paths, bbox sort, manual mode, remember-last, "
+        "etc.) to the value declared in the extension's source. Per-tab "
+        "widget values stashed in <code>user_state.json</code> are <i>not</i> "
+        "touched; clear them by toggling 'Remember last-used settings' off, "
+        "saving once, and toggling it back on."
+    )
+    reset_help.section = section
+    shared.opts.add_option("ad_reset_info", reset_help)
+    # The button itself. `OptionInfo` is used directly (not OptionHTML) so we
+    # control `do_not_save` and pass our factory as `component`. The default
+    # value doubles as the visible button label inside `_make_reset_settings_button`.
+    reset_info = shared.OptionInfo(
+        default="🔄 Reset ADetailer settings to defaults",
+        label="",
+        component=_make_reset_settings_button,
+        section=section,
+    )
+    # Critical: without this, the framework would try to save a "string"
+    # value for the button on every Settings → Apply, and on reload it would
+    # restore that string as the button's label, gradually drifting from the
+    # source-defined text. `do_not_save` also short-circuits `opts.set()`.
+    reset_info.do_not_save = True
+    shared.opts.add_option("ad_reset_button", reset_info)
 
 
 # xyz_grid
